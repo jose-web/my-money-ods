@@ -1,0 +1,16 @@
+{
+  "name": "Mi dinero",
+  "short_name": "Mi dinero",
+  "description": "Gastos de la casa y deudas sobre tu hoja de cálculo .ods o de Google, sin servidor.",
+  "lang": "es",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f4f4f2",
+  "theme_color": "#c4e6d0",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

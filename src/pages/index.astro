@@ -1,0 +1,31 @@
+---
+// src/pages/index.astro
+import App from '../components/App.tsx';
+import '../styles/global.css';
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+<!doctype html>
+<html lang="es" class="scheme-light">
+  <head>
+    <meta charset="utf-8" />
+    {/* viewport-fit=cover: sin esto iOS no da las zonas seguras (env(safe-area-inset-*)) y la barrita de
+        inicio tapa el menú de abajo; a cambio, cada borde de la pantalla se encarga de su zona segura */}
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex" />
+    <title>Mi dinero</title>
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <link rel="manifest" href={`${base}manifest.webmanifest`} />
+    <link rel="apple-touch-icon" href={`${base}icons/apple-touch-icon.png`} />
+    <meta name="theme-color" content="#c4e6d0" />
+    {/* sw.js solo existe en la compilación (lo genera pwa/integration.mjs) */}
+    {import.meta.env.PROD && (
+      <script is:inline define:vars={{ sw: `${base}sw.js` }}>
+        if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register(sw));
+      </script>
+    )}
+  </head>
+  <body class="bg-bg pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] font-sans text-sm leading-[1.45] text-ink antialiased">
+    <App client:only="preact" />
+    <noscript>Esta página necesita JavaScript.</noscript>
+  </body>
+</html>

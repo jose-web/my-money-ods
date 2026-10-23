@@ -4,108 +4,112 @@ import assert from 'node:assert/strict';
 import JSZip from 'jszip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 Object.assign(globalThis, { DOMParser, XMLSerializer });
-const { abrir, guardar, pendiente, deudas, ordenar, claveDeuda, esDe } = await import('../src/lib/registro.ts');
+const { abrir, guardar, cifras, nuevoId, pendiente } = await import('../src/lib/registro.ts');
 const { OdsDocument } = await import('../src/lib/ods.ts');
 const i18n = await import('../src/lib/i18n.ts');
 const { setIdioma } = i18n;
 const { parseNum, numeroEditable } = await import('../src/lib/format.ts');
+import type { Deuda, Lado, Movimiento } from '../src/lib/registro.ts';
 // el test va en español (en Node el idioma del sistema podría ser otro)
 setIdioma('es');
-import type { Movimiento } from '../src/lib/registro.ts';
 
 const out = process.argv[2] ?? 'tests/salida.ods';
 const t0 = performance.now();
-const mov = (quien: string, motivo: string, fecha: string, tipo: 'prestamo' | 'pago', importe: number, concepto = ''): Movimiento =>
-  ({ quien, motivo, fecha, concepto, tipo, importe, notas: '' });
+const mov = (fecha: string, tipo: 'prestamo' | 'pago', importe: number, concepto = ''): Movimiento => ({ fecha, concepto, tipo, importe, notas: '' });
+const deuda = (lado: Lado, quien: string, motivo: string, movimientos: Movimiento[]): Deuda => ({ id: nuevoId(), lado, quien, motivo, movimientos });
+const reabrir = async (bytes: Uint8Array) => { writeFileSync(out, bytes); return abrir(readFileSync(out)); };
 
-// la plantilla viene vacía
+// la plantilla solo trae Ajustes
 const { registro, datos } = await abrir(readFileSync('public/plantilla.ods'));
-assert.equal(datos.debo.length, 0);
-assert.equal(datos.meDeben.length, 0);
+assert.equal(datos.deudas.length, 0);
 assert.equal(datos.ajustes.copiaEmail, '');
-
-// varias deudas en cada lado; los movimientos se apuntan desordenados
-datos.ajustes.copiaEmail = 'yo@correo.es';
 assert.equal(datos.ajustes.idioma, '');
-datos.ajustes.idioma = 'en';
-datos.debo = ordenar([
-  mov('Banco', 'Hipoteca de la casa', '2026-01-01', 'prestamo', 120000),
-  mov('Hermana', 'Préstamo del coche', '2026-05-10', 'prestamo', 3000),
-  mov('Banco', 'Hipoteca de la casa', '2026-02-01', 'pago', 650.5, 'Cuota de febrero'),
-  mov('Hermana', 'Préstamo del coche', '2026-06-10', 'pago', 500),
-  mov('Banco', 'Hipoteca de la casa', '2026-03-01', 'pago', 650.5),
-]);
-datos.meDeben = [
-  mov('Mi prima', 'Vacaciones en Lisboa', '2026-08-01', 'prestamo', 420),
-  mov('Mi prima', 'Vacaciones en Lisboa', '2026-09-01', 'pago', 420),
-  mov('Luis', 'Cena', '2026-10-10', 'prestamo', 35.5),
-];
-// ordenar deja juntas las filas de cada deuda, por fecha
-assert.deepEqual(datos.debo.map(m => `${m.quien} ${m.fecha}`),
-  ['Banco 2026-01-01', 'Banco 2026-02-01', 'Banco 2026-03-01', 'Hermana 2026-05-10', 'Hermana 2026-06-10']);
-writeFileSync(out, await guardar(registro, datos));
 
-// reabrir y comprobar
-const again = await abrir(readFileSync(out));
-assert.equal(again.datos.debo.length, 5);
-assert.deepEqual(again.datos.debo[1], mov('Banco', 'Hipoteca de la casa', '2026-02-01', 'pago', 650.5, 'Cuota de febrero'));
-const dDebo = deudas(again.datos.debo);
-assert.deepEqual(dDebo.map(d => [d.quien, d.pendiente]), [['Banco', 118699], ['Hermana', 2500]]);
-assert.equal(dDebo[0].prestado, 120000);
-assert.equal(dDebo[0].pagado, 1301);
-assert.equal(dDebo[0].desde, '2026-01-01');
-assert.equal(dDebo[0].ultimo, '2026-03-01');
-const dMe = deudas(again.datos.meDeben);
-assert.deepEqual(dMe.map(d => [d.motivo, d.pendiente]), [['Vacaciones en Lisboa', 0], ['Cena', 35.5]]);
-assert.equal(pendiente(again.datos.meDeben), 35.5);
+// varias deudas en cada lado: cada una, su hoja
+datos.ajustes.copiaEmail = 'yo@correo.es';
+datos.ajustes.idioma = 'en';
+datos.deudas.push(
+  deuda('debo', 'Banco', 'Hipoteca de la casa', [mov('2026-01-01', 'prestamo', 120000), mov('2026-02-01', 'pago', 650.5, 'Cuota de febrero'), mov('2026-03-01', 'pago', 650.5)]),
+  deuda('debo', 'Mi hermana', 'Préstamo del coche', [mov('2026-05-10', 'prestamo', 3000), mov('2026-06-10', 'pago', 500)]),
+  deuda('meDeben', 'Mi prima', 'Vacaciones en Lisboa', [mov('2026-08-01', 'prestamo', 420), mov('2026-09-01', 'pago', 420)]),
+  // con caracteres que no valen en el nombre de una pestaña
+  deuda('meDeben', 'Luis', 'Cena 10/10: [cumple]', [mov('2026-10-10', 'prestamo', 35.5)]),
+);
+const again = await reabrir(await guardar(registro, datos));
+const doc = await OdsDocument.open(readFileSync(out));
+assert.deepEqual(doc.sheetNames(), ['Ajustes', 'Debo · Banco · Hipoteca de la casa', 'Debo · Mi hermana · Préstamo del coche',
+  'Me deben · Mi prima · Vacaciones en Lisboa', 'Me deben · Luis · Cena 10 10 cumple']);
+// la ficha de arriba y los movimientos debajo, con la fórmula del pendiente y su resultado
+const banco = doc.sheet('Debo · Banco · Hipoteca de la casa');
+assert.deepEqual(banco.readRows(1, 1, 2, 4), [['QUIÉN', 'Banco'], ['MOTIVO', 'Hipoteca de la casa'], ['LADO', 'DEBO'], ['PENDIENTE', 118699]]);
+assert.deepEqual(banco.readRows(6, 1, 5, 1)[0], ['FECHA', 'CONCEPTO', 'TIPO', 'IMPORTE', 'NOTAS']);
+assert.equal(banco.read(8, 3), 'PAGO');
+assert.equal(banco.read(8, 2), 'Cuota de febrero');
+const xml = await (await JSZip.loadAsync(readFileSync(out))).file('content.xml')!.async('string');
+assert.equal((xml.match(/table:formula="of:=SUMIF/g) ?? []).length, 4);
+assert.ok(xml.includes('style:name="md-N-eur"'), 'las hojas nuevas llevan su formato');
+
+// se lee igual que se escribió
+assert.deepEqual(again.datos.deudas.map(d => [d.lado, d.quien, d.motivo, cifras(d).pendiente]), [
+  ['debo', 'Banco', 'Hipoteca de la casa', 118699], ['debo', 'Mi hermana', 'Préstamo del coche', 2500],
+  ['meDeben', 'Mi prima', 'Vacaciones en Lisboa', 0], ['meDeben', 'Luis', 'Cena 10/10: [cumple]', 35.5]]);
+assert.deepEqual(again.datos.deudas[0].movimientos[1], mov('2026-02-01', 'pago', 650.5, 'Cuota de febrero'));
+const c = cifras(again.datos.deudas[0]);
+assert.deepEqual([c.prestado, c.pagado, c.desde, c.ultimo], [120000, 1301, '2026-01-01', '2026-03-01']);
 assert.equal(again.datos.ajustes.copiaEmail, 'yo@correo.es');
 assert.equal(again.datos.ajustes.idioma, 'en');
-// la deuda se reconoce sin mirar mayúsculas ni tildes
-assert.equal(claveDeuda('mi PRIMA', 'vacaciones en lisboa'), dMe[0].clave);
 
-// el total de la columna I conserva la fórmula y lleva el resultado
-const zip = await JSZip.loadAsync(readFileSync(out));
-const xml = await zip.file('content.xml')!.async('string');
-assert.equal((xml.match(/table:formula="of:=SUMIF/g) ?? []).length, 2);
-const doc = await OdsDocument.open(readFileSync(out));
-assert.equal(doc.sheet('Debo').read(2, 9), 121199);
-assert.equal(doc.sheet('Me deben').read(2, 9), 35.5);
-assert.equal(doc.sheet('Debo').read(2, 5), 'PRÉSTAMO');
+// renombrar una deuda renombra su pestaña; borrar otras borra sus hojas; quitar movimientos no deja restos;
+// una hoja que no es de deudas no se toca
+const ajena = await OdsDocument.open(readFileSync(out));
+ajena.addSheet('Mis notas', 2).write(1, 1, 'no tocar');
+const conAjena = await abrir(await ajena.toBytes());
+const [b, , , l] = conAjena.datos.deudas;
+b.motivo = 'Hipoteca del piso';
+b.movimientos = b.movimientos.slice(0, 1);
+conAjena.datos.deudas = [b, l];
+const third = await reabrir(await guardar(conAjena.registro, conAjena.datos));
+const doc3 = await OdsDocument.open(readFileSync(out));
+assert.deepEqual(doc3.sheetNames(), ['Ajustes', 'Debo · Banco · Hipoteca del piso', 'Me deben · Luis · Cena 10 10 cumple', 'Mis notas']);
+assert.equal(doc3.sheet('Mis notas').read(1, 1), 'no tocar');
+assert.equal(third.datos.deudas[0].movimientos.length, 1);
+assert.equal(doc3.sheet('Debo · Banco · Hipoteca del piso').read(8, 1), null);
 
-// borrar una deuda entera: no deben quedar restos
-const banco = dDebo[0].clave;
-again.datos.debo = again.datos.debo.filter(m => !esDe(m, banco));
-again.datos.meDeben = [];
-writeFileSync(out, await guardar(again.registro, again.datos));
-const third = await abrir(readFileSync(out));
-assert.deepEqual(deudas(third.datos.debo).map(d => d.quien), ['Hermana']);
-assert.equal(third.datos.debo.length, 2);
-assert.equal(third.datos.meDeben.length, 0);
+// guardar dos veces seguidas con el mismo registro (el guardado automático) no duplica hojas; y si el nombre
+// de la pestaña ya está cogido, lleva «(2)»
+third.datos.deudas.push(deuda('debo', 'Banco', 'Hipoteca del piso', [mov('2026-10-01', 'prestamo', 1)]));
+await guardar(third.registro, third.datos);
+const doble = await OdsDocument.open(await guardar(third.registro, third.datos));
+assert.deepEqual(doble.sheetNames(), ['Ajustes', 'Debo · Banco · Hipoteca del piso', 'Me deben · Luis · Cena 10 10 cumple', 'Mis notas', 'Debo · Banco · Hipoteca del piso (2)']);
 
-// un libro sin estas hojas (p. ej. otra hoja de cálculo exportada): se leen vacías y se crean al guardar;
-// y lo escrito a mano en la hoja (fechas como texto, importes con coma, tipos en minúscula) se entiende
-const zipAjeno = await JSZip.loadAsync(readFileSync(out));
-let c = await zipAjeno.file('content.xml')!.async('string');
-c = c.replace('table:name="Debo"', 'table:name="Otra"').replace('table:name="Ajustes"', 'table:name="Varios"');
-zipAjeno.file('content.xml', c);
-const sinHojas = await abrir(await zipAjeno.generateAsync({ type: 'uint8array' }));
-assert.equal(sinHojas.datos.debo.length, 0);
-assert.equal(sinHojas.datos.ajustes.copiaEmail, '');
-sinHojas.datos.debo.push(mov('Banco', 'Casa', '2026-10-05', 'prestamo', 1000));
-sinHojas.datos.ajustes.copiaEmail = 'otro@correo.es';
-const creado = await OdsDocument.open(await guardar(sinHojas.registro, sinHojas.datos));
-assert.deepEqual(creado.sheetNames(), ['Otra', 'Me deben', 'Varios', 'Debo', 'Ajustes']);
-const hojaNueva = creado.sheet('Debo');
-assert.equal(hojaNueva.read(1, 6), 'IMPORTE');
-hojaNueva.writeRows(3, 1, [['banco', 'casa', '7/10/26', 'A mano', 'pagado', '12,50 €', null]]);
-const releido = await abrir(await creado.toBytes());
-assert.deepEqual(releido.datos.debo[1], { ...mov('banco', 'casa', '2026-10-07', 'pago', 12.5, 'A mano') });
-assert.deepEqual(deudas(releido.datos.debo).map(d => d.pendiente), [987.5]);
-assert.equal(releido.datos.ajustes.copiaEmail, 'otro@correo.es');
-// el idioma escrito a mano en la hoja, por su nombre
-const conIdioma = await OdsDocument.open(await creado.toBytes());
-conIdioma.sheet('Ajustes').writeRows(5, 1, [['Idioma', 'Inglés']]);
-assert.equal((await abrir(await conIdioma.toBytes())).datos.ajustes.idioma, 'en');
+// lo escrito a mano en Hojas de cálculo: fechas como texto, importes con coma, tipos en minúscula, pestaña renombrada
+const mano = await OdsDocument.open(readFileSync(out));
+mano.renameSheet('Debo · Banco · Hipoteca del piso', 'Hipoteca');
+mano.sheet('Hipoteca').writeRows(8, 1, [['7/10/26', 'A mano', 'pagado', '12,50 €', null]]);
+mano.sheet('Ajustes').writeRows(2, 1, [['Idioma', 'Inglés']]);
+const leido = await abrir(await mano.toBytes());
+assert.equal(leido.datos.deudas[0].quien, 'Banco');
+assert.deepEqual(leido.datos.deudas[0].movimientos[1], mov('2026-10-07', 'pago', 12.5, 'A mano'));
+assert.equal(pendiente(leido.datos.deudas[0].movimientos), 120000 - 12.5);
+assert.equal(leido.datos.ajustes.idioma, 'en');
+// y al guardar sin cambiar la deuda, la pestaña renombrada a mano se queda como está
+const sinCambios = await OdsDocument.open(await guardar(leido.registro, leido.datos));
+assert.ok(sinCambios.sheetNames().includes('Hipoteca'));
+
+// formato antiguo (hojas Debo y Me deben con QUIÉN y MOTIVO en cada fila): se lee y al guardar pasa a una hoja por deuda
+const viejo = await OdsDocument.open(readFileSync('public/plantilla.ods'));
+viejo.addSheet('Debo', 7).writeRows(1, 1, [
+  ['QUIÉN', 'MOTIVO', 'FECHA', 'CONCEPTO', 'TIPO', 'IMPORTE', 'NOTAS'],
+  ['Banco', 'Casa', '2026-01-01', null, 'PRÉSTAMO', 1000, null],
+  ['Hermana', 'Coche', '2026-02-01', null, 'PRÉSTAMO', 300, null],
+  ['banco', 'CASA', '2026-03-01', 'Cuota', 'PAGO', 100, null],
+]);
+viejo.addSheet('Me deben', 7).writeRows(1, 1, [['QUIÉN', 'MOTIVO', 'FECHA', 'CONCEPTO', 'TIPO', 'IMPORTE', 'NOTAS'], ['Prima', 'Viaje', '2026-04-01', null, 'PRÉSTAMO', 50, null]]);
+const migrado = await abrir(await viejo.toBytes());
+assert.deepEqual(migrado.datos.deudas.map(d => [d.lado, d.quien, d.movimientos.length, cifras(d).pendiente]),
+  [['debo', 'Banco', 2, 900], ['debo', 'Hermana', 1, 300], ['meDeben', 'Prima', 1, 50]]);
+const nuevo = await OdsDocument.open(await guardar(migrado.registro, migrado.datos));
+assert.deepEqual(nuevo.sheetNames(), ['Ajustes', 'Debo · Banco · Casa', 'Debo · Hermana · Coche', 'Me deben · Prima · Viaje']);
 
 // importes escritos en cada idioma
 assert.deepEqual(['12,5', '1.000', '1.234,56', '1234.56', '650,50 €', 'x'].map(parseNum), [12.5, 1000, 1234.56, 1234.56, 650.5, null]);

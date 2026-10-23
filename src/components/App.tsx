@@ -588,8 +588,8 @@ export default function App() {
       <main class="mx-auto max-w-295 px-5 pt-6 pb-20 movil:px-3 movil:pt-3.5 movil:pb-[calc(96px+env(safe-area-inset-bottom))]">
         {tab === 'resumen' && <Resumen datos={datos} onIr={(lado, clave) => { setAbierta(a => ({ ...a, [lado]: clave })); setTab(lado); }} />}
         {(tab === 'debo' || tab === 'meDeben') && (
-          <Deudas key={tab} lado={tab} movimientos={datos[tab]} onChange={movs => cambiar(d => ({ ...d, [tab]: movs }))}
-            abierta={abierta[tab]} onAbrir={clave => setAbierta(a => ({ ...a, [tab]: clave }))} />
+          <Deudas key={tab} lado={tab} deudas={datos.deudas} onChange={deudas => cambiar(d => ({ ...d, deudas }))}
+            abierta={abierta[tab]} onAbrir={id => setAbierta(a => ({ ...a, [tab]: id }))} />
         )}
         {tab === 'ajustes' && <AjustesForm ajustes={datos.ajustes} onChange={ajustes => cambiar(d => ({ ...d, ajustes }))} idioma={selectorIdioma} />}
         {tab === 'drive' && (

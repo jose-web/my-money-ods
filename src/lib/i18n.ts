@@ -211,9 +211,9 @@ Para recuperarla, descarga el archivo adjunto y ábrelo en la web, en LibreOffic
     emailEj: 'tu@correo.com',
     emailNota: 'A quién se manda la copia con «⋯ › Copia de seguridad por correo».',
     idiomaNota: 'Se guarda en el archivo (fila IDIOMA de Ajustes). Sus hojas y columnas siguen en español.',
-    ayudaHoja: 'En Hojas de cálculo de Google puedes ver y cambiar los datos a mano en las hojas «Debo» y «Me deben»: cada fila es un '
-      + 'movimiento, y las filas con el mismo QUIÉN y MOTIVO son una misma deuda. Columnas: QUIÉN, MOTIVO, FECHA, CONCEPTO, '
-      + 'TIPO («PRÉSTAMO» o «PAGO»), IMPORTE, NOTAS. No cambies los nombres de las hojas ni el orden de las columnas.',
+    ayudaHoja: 'En Hojas de cálculo de Google cada deuda es una pestaña. Arriba van QUIÉN, MOTIVO, LADO («DEBO» o «ME DEBEN») y '
+      + 'PENDIENTE (se calcula solo); desde la fila 7, un movimiento por fila: FECHA, CONCEPTO, TIPO («PRÉSTAMO» o «PAGO»), IMPORTE, '
+      + 'NOTAS. Puedes cambiar los datos y el nombre de la pestaña a mano, pero no muevas esas celdas ni el orden de las columnas.',
   },
 
   elegirDrive: {
@@ -476,10 +476,10 @@ To restore it, download the attached file and open it in the web app or LibreOff
     emailEj: 'you@example.com',
     emailNota: 'Where the backup is sent with “⋯ › Back up by email”.',
     idiomaNota: 'It’s saved in the file (IDIOMA row in Ajustes). Its sheets and columns stay in Spanish.',
-    ayudaHoja: 'In Google Sheets you can view and edit the data by hand in the “Debo” (I owe) and “Me deben” (owed to me) sheets: each row is '
-      + 'an entry, and rows with the same QUIÉN (who) and MOTIVO (reason) belong to the same debt. Columns: QUIÉN, MOTIVO, FECHA (date), '
-      + 'CONCEPTO (description), TIPO («PRÉSTAMO» loan or «PAGO» payment), IMPORTE (amount), NOTAS (notes). Don’t rename the sheets or '
-      + 'reorder the columns.',
+    ayudaHoja: 'In Google Sheets each debt is a tab. At the top are QUIÉN (who), MOTIVO (reason), LADO («DEBO» I owe or «ME DEBEN» '
+      + 'owed to me) and PENDIENTE (outstanding, calculated by itself); from row 7, one entry per row: FECHA (date), CONCEPTO (description), '
+      + 'TIPO («PRÉSTAMO» loan or «PAGO» payment), IMPORTE (amount), NOTAS (notes). You can edit the data and rename the tab by hand, '
+      + 'but don’t move those cells or reorder the columns.',
   },
 
   elegirDrive: {

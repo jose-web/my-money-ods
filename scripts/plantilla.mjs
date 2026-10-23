@@ -1,31 +1,15 @@
 // scripts/plantilla.mjs — genera public/plantilla.ods (node scripts/plantilla.mjs)
-// Libro vacío con las tres hojas que lee la web: cabecera en la fila 1 y datos desde la 2.
-// En la columna I de Debo y Me deben va el total pendiente con fórmula, para verlo en Hojas de cálculo.
+// Libro vacío: solo la hoja Ajustes. Las hojas de las deudas (una por deuda) las crea la web al guardar,
+// con su propio formato (ver ESTILOS y crearHojaDeuda en src/lib/registro.ts).
 import { writeFileSync } from 'node:fs';
 import JSZip from 'jszip';
 
 const MIME = 'application/vnd.oasis.opendocument.spreadsheet';
-const FILAS = 1000;
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const texto = (s, estilo = 'Default') => `<table:table-cell table:style-name="${estilo}" office:value-type="string" calcext:value-type="string"><text:p>${esc(s)}</text:p></table:table-cell>`;
 const vacias = n => `<table:table-cell table:number-columns-repeated="${n}"/>`;
-const formula = (f, estilo) => `<table:table-cell table:style-name="${estilo}" table:formula="${esc(f)}" office:value-type="float" office:value="0" calcext:value-type="float"><text:p>0</text:p></table:table-cell>`;
 
-/** Hoja de movimientos: QUIÉN, MOTIVO, FECHA, CONCEPTO, TIPO, IMPORTE, NOTAS y, en I, el total pendiente. */
-function hoja(nombre, resumen, f) {
-  const cols = [['co-media', 'Default'], ['co-ancha', 'Default'], ['co-fecha', 'ce-fecha'], ['co-ancha', 'Default'],
-    ['co-media', 'Default'], ['co-media', 'ce-eur'], ['co-ancha', 'Default'], ['co-estrecha', 'Default'], ['co-media', 'Default']];
-  return `<table:table table:name="${esc(nombre)}" table:style-name="ta1">
-${cols.map(([c, e]) => `<table:table-column table:style-name="${c}" table:default-cell-style-name="${e}"/>`).join('\n')}
-<table:table-row table:style-name="ro1">${['QUIÉN', 'MOTIVO', 'FECHA', 'CONCEPTO', 'TIPO', 'IMPORTE', 'NOTAS'].map(c => texto(c, 'ce-cab')).join('')}${vacias(1)}${texto(resumen, 'ce-cab')}</table:table-row>
-<table:table-row table:style-name="ro1">${vacias(8)}${formula(f, 'ce-eur-negrita')}</table:table-row>
-<table:table-row table:style-name="ro1" table:number-rows-repeated="${FILAS}">${vacias(9)}</table:table-row>
-</table:table>`;
-}
-
-const rango = c => `[.${c}2:.${c}${FILAS + 2}]`;
-const pendiente = `of:=SUMIF(${rango('E')};"PRÉSTAMO";${rango('F')})-SUMIF(${rango('E')};"PAGO";${rango('F')})`;
 const AJUSTES = [
   ['IDIOMA', ''],
   ['EMAIL PARA COPIAS DE SEGURIDAD', ''],
@@ -51,8 +35,6 @@ const content = `<?xml version="1.0" encoding="UTF-8"?>
 <style:style style:name="ce-eur-negrita" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="N-eur"><style:text-properties fo:font-weight="bold"/></style:style>
 </office:automatic-styles>
 <office:body><office:spreadsheet>
-${hoja('Debo', 'TOTAL QUE DEBO', pendiente)}
-${hoja('Me deben', 'TOTAL QUE ME DEBEN', pendiente)}
 <table:table table:name="Ajustes" table:style-name="ta1">
 <table:table-column table:style-name="co-ajuste" table:default-cell-style-name="Default"/>
 <table:table-column table:style-name="co-valor" table:default-cell-style-name="Default"/>

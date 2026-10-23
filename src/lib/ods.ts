@@ -9,7 +9,16 @@ const NS = {
   table: 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
   text: 'urn:oasis:names:tc:opendocument:xmlns:text:1.0',
   calcext: 'urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0',
+  style: 'urn:oasis:names:tc:opendocument:xmlns:style:1.0',
 } as const;
+
+// prefijos que puede usar el XML de `addStyles`
+const NS_ESTILOS = {
+  style: NS.style,
+  table: NS.table,
+  fo: 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0',
+  number: 'urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0',
+};
 
 const MIME = 'application/vnd.oasis.opendocument.spreadsheet';
 
@@ -248,6 +257,13 @@ export class OdsSheet {
     this.cellForWrite(this.explodeRows(row, row)[0], col).setAttributeNS(NS.table, 'table:style-name', style);
   }
 
+  /** Escribe una fórmula (sintaxis de ODF: `of:=SUM([.D7:.D99])`) con su resultado ya calculado. */
+  setFormula(row: number, col: number, formula: string, value: number): void {
+    const cell = this.cellForWrite(this.explodeRows(row, row)[0], col);
+    cell.setAttributeNS(NS.table, 'table:formula', formula);
+    this.setFormulaResult(row, col, value);
+  }
+
   /** Guarda el resultado de una celda con fórmula sin tocar la fórmula. */
   setFormulaResult(row: number, col: number, value: number): void {
     const cell = this.cellForWrite(this.explodeRows(row, row)[0], col);
@@ -340,27 +356,68 @@ export class OdsDocument {
   }
 
   sheet(name: string): OdsSheet {
-    const tabla = Array.from(this.dom.getElementsByTagNameNS(NS.table, 'table')).find(x => x.getAttributeNS(NS.table, 'name') === name);
-    if (!tabla) throw new Error(t.errores.faltaHoja(name));
-    return new OdsSheet(this.dom, tabla);
+    return new OdsSheet(this.dom, this.tabla(name));
   }
 
-  /** Añade una hoja vacía y sin estilos al final del libro, con `nCols` columnas de ancho normal. */
-  addSheet(name: string, nCols: number): OdsSheet {
+  /**
+   * Añade una hoja vacía al final del libro. Con un número, son columnas de ancho normal y sin estilo; con una
+   * lista, una columna por elemento con su estilo de columna (ancho) y el de sus celdas (formato), si se dan.
+   */
+  addSheet(name: string, columnas: number | { columna?: string; celda?: string }[]): OdsSheet {
     const tables = Array.from(this.dom.getElementsByTagNameNS(NS.table, 'table'));
     const last = tables[tables.length - 1];
     const t = this.dom.createElementNS(NS.table, 'table:table');
     t.setAttributeNS(NS.table, 'table:name', name);
     const style = last.getAttributeNS(NS.table, 'style-name');
     if (style) t.setAttributeNS(NS.table, 'table:style-name', style);
-    const cols = this.dom.createElementNS(NS.table, 'table:table-column');
-    setRepeat(cols, 'number-columns-repeated', nCols);
-    t.appendChild(cols);
+    for (const c of typeof columnas === 'number' ? [{ n: columnas }] : columnas.map(c => ({ n: 1, ...c }))) {
+      const col = this.dom.createElementNS(NS.table, 'table:table-column');
+      setRepeat(col, 'number-columns-repeated', c.n);
+      if ('columna' in c && c.columna) col.setAttributeNS(NS.table, 'table:style-name', c.columna);
+      if ('celda' in c && c.celda) col.setAttributeNS(NS.table, 'table:default-cell-style-name', c.celda);
+      t.appendChild(col);
+    }
     const row = this.dom.createElementNS(NS.table, 'table:table-row');
     row.appendChild(this.dom.createElementNS(NS.table, 'table:table-cell'));
     t.appendChild(row);
     last.parentNode!.insertBefore(t, last.nextSibling);
     return new OdsSheet(this.dom, t);
+  }
+
+  removeSheet(name: string): void {
+    const tabla = this.tabla(name);
+    tabla.parentNode!.removeChild(tabla);
+  }
+
+  renameSheet(name: string, nuevo: string): void {
+    this.tabla(name).setAttributeNS(NS.table, 'table:name', nuevo);
+  }
+
+  private tabla(name: string): Element {
+    const tabla = Array.from(this.dom.getElementsByTagNameNS(NS.table, 'table')).find(x => x.getAttributeNS(NS.table, 'name') === name);
+    if (!tabla) throw new Error(t.errores.faltaHoja(name));
+    return tabla;
+  }
+
+  /**
+   * Añade a los estilos automáticos de content.xml los de `xml` (elementos de estilo de ODF, sin envolver) que aún
+   * no estén, por su nombre. Así una hoja creada por la web tiene su formato aunque el libro venga de otro programa.
+   */
+  addStyles(xml: string): void {
+    const raiz = this.dom.documentElement;
+    let auto = Array.from(raiz.childNodes).find(n => n.nodeType === 1 && (n as Element).namespaceURI === NS.office && (n as Element).localName === 'automatic-styles') as Element | undefined;
+    if (!auto) {
+      auto = this.dom.createElementNS(NS.office, 'office:automatic-styles');
+      const body = Array.from(raiz.childNodes).find(n => n.nodeType === 1 && (n as Element).localName === 'body') ?? null;
+      raiz.insertBefore(auto, body);
+    }
+    const hay = new Set(elements(auto).map(e => e.getAttributeNS(NS.style, 'name')));
+    const decls = Object.entries(NS_ESTILOS).map(([p, uri]) => `xmlns:${p}="${uri}"`).join(' ');
+    const frag = new DOMParser().parseFromString(`<x ${decls}>${xml}</x>`, 'application/xml');
+    for (const e of elements(frag.documentElement)) {
+      if (hay.has(e.getAttributeNS(NS.style, 'name'))) continue;
+      auto.appendChild(this.dom.importNode(e, true));
+    }
   }
 
   /** Quita los resultados guardados de las fórmulas para que LibreOffice las recalcule al abrir. */

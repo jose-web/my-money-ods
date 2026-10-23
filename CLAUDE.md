@@ -33,26 +33,35 @@ Antes de dar un cambio por bueno: `check`, `test` y `build`. El usuario suele te
 | `src/components/AjustesForm.tsx` | Hoja Ajustes (solo el correo de las copias) |
 | `src/components/{Selector,ModalFormulario,ModalCorreo,ElegirDrive,PaginaDrive}.tsx`, `ui.ts` | Del original |
 | `src/lib/i18n.ts` | Textos en español e inglés (`t`, `setIdioma`, `IDIOMAS`) |
-| `src/lib/registro.ts` | Hojas ↔ datos y cálculos (`deudas`, `pendiente`, `ordenar`, `claveDeuda`) |
+| `src/lib/registro.ts` | Hojas ↔ datos y cálculos (`cifras`, `pendiente`, `claveDeuda`, `nuevoId`) |
 | `scripts/plantilla.mjs` | Genera `public/plantilla.ods` (no hay LibreOffice de por medio) |
 | `tests/registro.test.ts` | Ida y vuelta, borrado, hojas que faltan y datos escritos a mano |
 
 ## Decisiones
 
-- **Estructura propuesta por Claude y aceptada por el usuario** (no se adaptó a las columnas de su hoja antigua):
-  hojas Debo y Me deben con QUIÉN, MOTIVO, FECHA, CONCEPTO, TIPO, IMPORTE, NOTAS (fila 1 cabecera, datos desde la 2)
-  y Ajustes con pares AJUSTE/VALOR leídos por rótulo. **Una deuda = QUIÉN + MOTIVO** (`claveDeuda`, sin mayúsculas ni
-  tildes): no hay hoja de deudas aparte, así se lee y se filtra bien en Hojas de cálculo. Por eso una deuda nueva
-  nace con su primer préstamo (no existen deudas vacías), no se deja crear ni renombrar a una clave que ya existe,
-  y renombrar cambia QUIÉN/MOTIVO en todas sus filas. Saldada = pendiente 0 (no hay columna de estado).
-  Hojas buscadas por nombre sin mayúsculas ni tildes; las que faltan se crean al guardar. I2 lleva el total
-  pendiente con fórmula (SUMIF por «PRÉSTAMO» y «PAGO»); la web solo actualiza su resultado.
+- **Una hoja por deuda** (lo pidió el usuario; antes eran dos hojas, Debo y Me deben, con QUIÉN y MOTIVO en cada
+  fila). Ficha arriba (A1:B4: QUIÉN, MOTIVO, LADO «DEBO»/«ME DEBEN», PENDIENTE con fórmula SUMIF en B4), cabecera de
+  movimientos en la fila 6 (FECHA, CONCEPTO, TIPO, IMPORTE, NOTAS) y datos desde la 7. Una hoja es de deuda si A1 es
+  QUIÉN y A3 es LADO: **se reconoce por el contenido, no por el nombre de la pestaña**. Las demás hojas no se tocan.
+  Nombre automático `Debo · Quién · Motivo` (sin `[]*?:/\\`, 60 caracteres, «(2)» si se repite).
+  - `Deuda.id` identifica la deuda en la sesión (`hoja:<nombre>` al abrir, `nuevoId()` si es nueva). El `Registro`
+    guarda por id su hoja, la «firma» (lado + quién + motivo con que se guardó) y cuántas filas ocupa. Al guardar:
+    deuda sin hoja → hoja nueva; firma distinta → se renombra la pestaña (si no, se respeta el nombre puesto a mano);
+    id que ya no está → se borra su hoja. Por eso guardar dos veces seguidas (guardado automático) no duplica.
+  - Las hojas nuevas llevan estilos propios `md-*` que `OdsDocument.addStyles` añade a content.xml si faltan (el
+    libro puede venir de Google o LibreOffice con otros nombres). `addSheet` admite estilo de columna y de celda.
+  - Formato antiguo (Debo/Me deben con QUIÉN, MOTIVO, FECHA en la fila 1): se lee agrupando por `claveDeuda` y al
+    guardar sus hojas se borran y cada deuda pasa a la suya.
+  - La plantilla solo trae Ajustes. Ajustes se crea antes de borrar nada, para que el libro nunca se quede sin hojas.
+  - Una deuda nace con su primer préstamo; dos del mismo lado no pueden tener el mismo QUIÉN + MOTIVO
+    (`claveDeuda`, sin mayúsculas ni tildes). Saldada = pendiente 0 (no hay columna de estado).
+  - Comprobado con LibreOffice que la fórmula del pendiente calcula sola (borrando el resultado guardado).
+  **Sin probar con Google de verdad**: que la conversión a Hoja de Google conserve la fórmula y los formatos.
 - Lectura tolerante a lo editado a mano en Hojas de cálculo: fechas como texto (`7/10/26`), importes como texto
   (`12,50 €`), TIPO que empiece por «pag» = pago, lo demás préstamo.
 - **Acceso a Drive igual que Celestina** (elegido por el usuario frente al Google Picker): permiso `drive.file`, la
   web solo ve lo que sube. Su hoja antigua se pasa copiando los datos a una hoja creada/subida desde la web.
-- Al apuntar o editar, los movimientos se ordenan con `ordenar`: juntos por deuda (en el orden en que aparece cada
-  una) y dentro por fecha; así quedan en la hoja.
+- Al apuntar o editar, los movimientos de una deuda se ordenan por fecha (`porFecha`), y así quedan en su hoja.
 - La deuda abierta de cada lado la guarda `App` (`abierta`), para que el Resumen pueda abrir una; pulsar otra vez
   la pestaña activa vuelve a la lista.
 - Nombres propios para no chocar con Celestina en el mismo origen: IndexedDB `mi-dinero-ods`, cachés
@@ -81,6 +90,9 @@ Funciona: `check`, `test` y `build` pasan. Recorrido en Chrome headless (Playwri
 en Debo con pagos, deuda repetida rechazada, una saldada y otra pendiente en Me deben, resumen (y abrir una deuda
 desde él) y descarga del `.ods`; sin errores de consola ni scroll horizontal. Idiomas: cambio en la bienvenida y en el
 menú sin perder datos, importes en inglés («120,000», «650.50»), recordado al recargar, navegador en inglés → inglés.
+Una hoja por deuda: el test cubre crear, renombrar, borrar, hojas ajenas, doble guardado, pestaña renombrada a mano,
+datos escritos a mano y el paso desde el formato antiguo; el recorrido en navegador descarga un .ods con una pestaña
+por deuda.
 **Sin probar con Google de verdad** (como en el original) ni en un teléfono real. No hay commit todavía.
 
 ## Pendiente / ideas

@@ -1,6 +1,6 @@
 // src/components/Resumen.tsx
 // Portada: cuánto debo, cuánto me deben y la diferencia; debajo, cada deuda pendiente de los dos lados.
-import { deudas, round2, type Datos, type Deuda, type Lado } from '../lib/registro.ts';
+import { cifras, round2, type Datos, type Deuda, type Lado } from '../lib/registro.ts';
 import { eur } from '../lib/format.ts';
 import { etiqueta, h2, muted, panel } from './ui.ts';
 import { t } from '../lib/i18n.ts';
@@ -8,21 +8,25 @@ import { t } from '../lib/i18n.ts';
 interface Props {
   datos: Datos;
   /** abre una deuda (o la lista de su lado, con null) */
-  onIr(lado: Lado, clave: string | null): void;
+  onIr(lado: Lado, id: string | null): void;
 }
 
 const tarjeta = 'flex cursor-pointer flex-col gap-1 rounded-[10px] bg-paper p-5 text-left shadow-[0_1px_0_var(--color-line)] transition hover:shadow-[0_0_0_1.5px_var(--color-ink)] movil:p-4';
 const cifra = 'text-[30px] leading-tight font-bold tracking-[-.02em] tabular-nums';
 
 export function Resumen({ datos, onIr }: Props) {
-  const debo = deudas(datos.debo).filter(d => d.pendiente !== 0);
-  const meDeben = deudas(datos.meDeben).filter(d => d.pendiente !== 0);
-  const total = (ds: Deuda[]) => round2(ds.reduce((s, d) => s + d.pendiente, 0));
+  // las pendientes de cada lado, con lo que queda
+  type ConPendiente = Deuda & { pendiente: number };
+  const pendientes = (lado: Lado): ConPendiente[] =>
+    datos.deudas.filter(d => d.lado === lado).map(d => ({ ...d, pendiente: cifras(d).pendiente })).filter(d => d.pendiente !== 0);
+  const debo = pendientes('debo');
+  const meDeben = pendientes('meDeben');
+  const total = (ds: ConPendiente[]) => round2(ds.reduce((s, d) => s + d.pendiente, 0));
   const tDebo = total(debo);
   const tMeDeben = total(meDeben);
   const neto = round2(tMeDeben - tDebo);
 
-  const columna = (lado: Lado, ds: Deuda[], total: number) => {
+  const columna = (lado: Lado, ds: ConPendiente[], total: number) => {
     const max = Math.max(...ds.map(d => d.pendiente), 1);
     return (
       <section class={panel}>
@@ -33,9 +37,9 @@ export function Resumen({ datos, onIr }: Props) {
         {ds.length ? (
           <ul class="flex flex-col gap-1">
             {[...ds].sort((a, b) => b.pendiente - a.pendiente).map(d => (
-              <li key={d.clave}>
+              <li key={d.id}>
                 <button class="grid w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-lg px-2 py-2 text-left text-[13px] hover:bg-field"
-                  onClick={() => onIr(lado, d.clave)}>
+                  onClick={() => onIr(lado, d.id)}>
                   <span class="min-w-0 truncate"><b>{d.quien || t.deudas.sinNombre}</b>{d.motivo && <span class="text-muted"> · {d.motivo}</span>}</span>
                   <span class="text-right font-semibold tabular-nums">{eur(d.pendiente)}</span>
                   <span class="col-span-2 h-2 rounded-full bg-field">

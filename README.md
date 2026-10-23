@@ -14,24 +14,33 @@ Web estática (Astro + Preact + Tailwind) para llevar lo que debo y lo que me de
 
 ## El archivo
 
-Tres hojas. En Debo y Me deben la cabecera va en la fila 1 y cada fila desde la 2 es un movimiento; las filas
-con el mismo QUIÉN y MOTIVO son una misma deuda. En la columna I hay el total pendiente con fórmula, para verlo en
-Hojas de cálculo.
+**Cada deuda es una hoja** (una pestaña en Hojas de cálculo), con un nombre que se pone solo, como
+«Debo · Banco · Hipoteca de la casa». Además está la hoja **Ajustes** (AJUSTE, VALOR: idioma, correo y fecha de la
+última copia).
 
-| Hoja | Columnas |
-|---|---|
-| Debo | QUIÉN, MOTIVO, FECHA, CONCEPTO, TIPO (`PRÉSTAMO` o `PAGO`), IMPORTE, NOTAS |
-| Me deben | igual que Debo |
-| Ajustes | AJUSTE, VALOR |
+| Fila | A | B, C, D, E |
+|---|---|---|
+| 1 | QUIÉN | Banco |
+| 2 | MOTIVO | Hipoteca de la casa |
+| 3 | LADO | `DEBO` o `ME DEBEN` |
+| 4 | PENDIENTE | fórmula: préstamos − pagos |
+| 6 | FECHA | CONCEPTO, TIPO (`PRÉSTAMO` o `PAGO`), IMPORTE, NOTAS |
+| 7… | un movimiento por fila | |
 
-Si abres otro `.ods` sin estas hojas, se crean al guardar (las demás hojas se conservan).
+- Crear una deuda en la web crea su hoja; eliminarla, la borra; cambiarle el nombre o el motivo renombra la pestaña.
+- La web reconoce cada hoja por lo que tiene dentro (QUIÉN en A1 y LADO en A3), no por el nombre de la pestaña: puedes
+  renombrarla a mano y se queda así mientras no cambies la deuda en la web.
+- Las hojas que no son de deudas no se tocan. Si abres otro `.ods`, Ajustes y las deudas se crean al guardar.
+- Los archivos hechos antes, con dos hojas **Debo** y **Me deben** (QUIÉN y MOTIVO en cada fila), se leen igual y al
+  guardar pasan a una hoja por deuda.
 
 ## Pasar tu Hoja de Google actual
 
 La web solo puede ver en Drive lo que ella sube (permiso `drive.file`), así que:
 
 1. En la web, **Empezar con uno vacío** y **⋯ › Subir este archivo a Drive** (o **Abrir desde Google Drive › Crear una hoja nueva**).
-2. **⋯ › Ver en Hojas de cálculo** y copia ahí tus datos de la hoja antigua respetando las columnas de arriba.
+2. Crea en la web cada deuda con su primer importe; luego, en **⋯ › Ver en Hojas de cálculo**, puedes pegar el resto de
+   movimientos de tu hoja antigua en la pestaña de cada deuda, desde la fila 7, respetando las columnas de arriba.
 3. Vuelve a abrirla en la web: desde entonces aparece en **Abrir desde Google Drive** en todos tus dispositivos.
 
 ## Desarrollo

@@ -1,9 +1,9 @@
 // src/components/Deudas.tsx
 // Un lado de las cuentas (lo que debo, o lo que me deben): la lista de deudas (el banco por la casa, mi prima por
 // las vacaciones…) con lo que queda de cada una y, al abrir una, sus préstamos y pagos con lo que quedaba después
-// de cada uno. Todo se edita en modales.
+// de cada uno. Todo se edita en modales. Cada deuda es una hoja del archivo (ver src/lib/registro.ts).
 import { useState } from 'preact/hooks';
-import { claveDeuda, deudas, esDe, hoy, ordenar, porFecha, round2, type Deuda, type Lado, type Movimiento, type Tipo } from '../lib/registro.ts';
+import { cifras, claveDeuda, hoy, nuevoId, porFecha, round2, type Deuda, type Lado, type Movimiento, type Tipo } from '../lib/registro.ts';
 import { eur, fecha, numeroEditable, parseNum } from '../lib/format.ts';
 import { t } from '../lib/i18n.ts';
 import { ModalFormulario } from './ModalFormulario.tsx';
@@ -12,16 +12,17 @@ import { btn, campo, empty, error as errorCls, etiqueta, h2, icon, input, lista,
 
 interface Props {
   lado: Lado;
-  movimientos: Movimiento[];
-  onChange(movimientos: Movimiento[]): void;
-  /** la deuda abierta (su clave) o null para ver la lista; lo lleva App para que el resumen pueda abrir una */
+  /** todas las deudas, de los dos lados: este componente solo enseña y cambia las de `lado` */
+  deudas: Deuda[];
+  onChange(deudas: Deuda[]): void;
+  /** la deuda abierta (su id) o null para ver la lista; lo lleva App para que el resumen pueda abrir una */
   abierta: string | null;
-  onAbrir(clave: string | null): void;
+  onAbrir(id: string | null): void;
 }
 
-/** Deuda nueva o editada: `original` es la clave de la que se edita (null si es nueva). */
+/** Deuda nueva o editada: `id` es el de la que se edita (null si es nueva). */
 interface EdicionDeuda {
-  original: string | null;
+  id: string | null;
   quien: string;
   motivo: string;
   importe: string;
@@ -29,7 +30,7 @@ interface EdicionDeuda {
   notas: string;
 }
 
-/** Movimiento abierto en el modal: `i` es su posición en `movimientos`, o -1 si es nuevo. */
+/** Movimiento abierto en el modal: `i` es su posición en la deuda abierta, o -1 si es nuevo. */
 interface EdicionMov {
   i: number;
   m: Movimiento;
@@ -40,8 +41,8 @@ const pastilla = 'rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-
 const tarjeta = 'flex cursor-pointer flex-col gap-1 rounded-xl border border-line bg-paper p-4.5 text-left transition hover:border-ink';
 
 /** Barra de lo devuelto sobre lo prestado. */
-function Progreso({ d }: { d: Deuda }) {
-  const pct = d.prestado > 0 ? Math.min(100, (d.pagado / d.prestado) * 100) : 0;
+function Progreso({ prestado, pagado }: { prestado: number; pagado: number }) {
+  const pct = prestado > 0 ? Math.min(100, (pagado / prestado) * 100) : 0;
   return (
     <span class="mt-1.5 block h-2 rounded-full bg-field" title={t.deudas.pctDevuelto(Math.round(pct))}>
       {pct > 0 && <span class="block h-2 rounded-full bg-primary-dark" style={{ width: `${pct}%` }} />}
@@ -49,57 +50,61 @@ function Progreso({ d }: { d: Deuda }) {
   );
 }
 
-export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props) {
+export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
   const [deuda, setDeuda] = useState<EdicionDeuda | null>(null);
   const [mov, setMov] = useState<EdicionMov | null>(null);
   // textos de este lado
   const l = t.deudas[lado];
   const color = lado === 'debo' ? 'text-danger' : 'text-ok';
-  const todas = deudas(movimientos);
-  const activas = todas.filter(d => d.pendiente !== 0);
-  const saldadas = todas.filter(d => d.pendiente === 0);
-  const actual = abierta ? todas.find(d => d.clave === abierta) ?? null : null;
-  const nombres = [...new Set(todas.map(d => d.quien).filter(Boolean))];
+  const delLado = deudas.filter(x => x.lado === lado).map(x => ({ x, c: cifras(x) }));
+  const activas = delLado.filter(({ c }) => c.pendiente !== 0);
+  const saldadas = delLado.filter(({ c }) => c.pendiente === 0);
+  const actual = delLado.find(({ x }) => x.id === abierta) ?? null;
+  const nombres = [...new Set(delLado.map(({ x }) => x.quien).filter(Boolean))];
+
+  /** Cambia una deuda (por su id) y deja las demás como están. */
+  const cambiarDeuda = (id: string, fn: (x: Deuda) => Deuda) => onChange(deudas.map(x => (x.id === id ? fn(x) : x)));
 
   // ------------------------------------------------------------ deuda nueva o editada
   const importeDeuda = deuda ? parseNum(deuda.importe) : null;
-  const claveNueva = deuda ? claveDeuda(deuda.quien.trim(), deuda.motivo.trim()) : '';
-  // dos deudas no pueden llamarse igual: sus filas se mezclarían
-  const repetida = !!deuda && claveNueva !== deuda.original && todas.some(d => d.clave === claveNueva);
-  const deudaValida = !!deuda && !!deuda.quien.trim() && !repetida && (deuda.original !== null || (importeDeuda !== null && importeDeuda !== 0));
+  // dos deudas del mismo lado no pueden llamarse igual: no se sabría cuál es cuál
+  const repetida = !!deuda && delLado.some(({ x }) => x.id !== deuda.id && claveDeuda(x.quien, x.motivo) === claveDeuda(deuda.quien.trim(), deuda.motivo.trim()));
+  const deudaValida = !!deuda && !!deuda.quien.trim() && !repetida && (deuda.id !== null || (importeDeuda !== null && importeDeuda !== 0));
 
   function aceptarDeuda() {
     if (!deuda || !deudaValida) return;
     const quien = deuda.quien.trim();
     const motivo = deuda.motivo.trim();
-    if (deuda.original === null) {
-      const m: Movimiento = { quien, motivo, fecha: deuda.fecha, concepto: '', tipo: 'prestamo', importe: Math.abs(importeDeuda!), notas: deuda.notas.trim() };
-      onChange(ordenar([...movimientos, m]));
+    if (deuda.id === null) {
+      const m: Movimiento = { fecha: deuda.fecha, concepto: '', tipo: 'prestamo', importe: Math.abs(importeDeuda!), notas: deuda.notas.trim() };
+      const nueva: Deuda = { id: nuevoId(), lado, quien, motivo, movimientos: [m] };
+      onChange([...deudas, nueva]);
+      onAbrir(nueva.id);
     } else {
-      // se renombra en todas sus filas
-      onChange(movimientos.map(m => (esDe(m, deuda.original!) ? { ...m, quien, motivo } : m)));
+      cambiarDeuda(deuda.id, x => ({ ...x, quien, motivo }));
     }
-    onAbrir(claveDeuda(quien, motivo));
     setDeuda(null);
   }
 
-  function eliminarDeuda(d: Deuda) {
-    if (!confirm(t.deudas.confirmarEliminarDeuda(`${d.quien}${d.motivo ? ` · ${d.motivo}` : ''}`, d.movimientos.length))) return;
-    onChange(movimientos.filter(m => !esDe(m, d.clave)));
+  function eliminarDeuda(x: Deuda) {
+    if (!confirm(t.deudas.confirmarEliminarDeuda(`${x.quien}${x.motivo ? ` · ${x.motivo}` : ''}`, x.movimientos.length))) return;
+    onChange(deudas.filter(y => y.id !== x.id));
     onAbrir(null);
   }
 
   // ------------------------------------------------------------ movimientos de la deuda abierta
   function abrirMov(i: number, tipo: Tipo = 'pago') {
     if (!actual) return;
-    const m = i < 0 ? { quien: actual.quien, motivo: actual.motivo, fecha: hoy(), concepto: '', tipo, importe: 0, notas: '' } : movimientos[i];
+    const m = i < 0 ? { fecha: hoy(), concepto: '', tipo, importe: 0, notas: '' } : actual.x.movimientos[i];
     setMov({ i, m, importe: i < 0 ? '' : numeroEditable(m.importe) });
   }
   const importeMov = mov ? parseNum(mov.importe) : null;
   function aceptarMov() {
-    if (!mov || importeMov === null) return;
+    if (!mov || !actual || importeMov === null) return;
     const m = { ...mov.m, concepto: mov.m.concepto.trim(), notas: mov.m.notas.trim(), importe: Math.abs(importeMov) };
-    onChange(ordenar(mov.i < 0 ? [...movimientos, m] : movimientos.map((x, j) => (j === mov.i ? m : x))));
+    cambiarDeuda(actual.x.id, x => ({
+      ...x, movimientos: porFecha(mov.i < 0 ? [...x.movimientos, m] : x.movimientos.map((y, j) => (j === mov.i ? m : y))),
+    }));
     setMov(null);
   }
   const editarMov = (cambio: Partial<Movimiento>) => mov && setMov({ ...mov, m: { ...mov.m, ...cambio } });
@@ -108,7 +113,7 @@ export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props)
   const modales = (
     <>
       {deuda && (
-        <ModalFormulario titulo={deuda.original === null ? l.nueva : t.deudas.editarDeuda} valido={deudaValida}
+        <ModalFormulario titulo={deuda.id === null ? l.nueva : t.deudas.editarDeuda} valido={deudaValida}
           onAceptar={aceptarDeuda} onCancelar={() => setDeuda(null)}>
           <div class="grid grid-cols-2 gap-x-4 gap-y-3.5 movil:grid-cols-1">
             <label class={campo}>
@@ -121,7 +126,7 @@ export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props)
               <span class={etiqueta}>{t.deudas.porQue}</span>
               <input class={input} value={deuda.motivo} placeholder={l.motivoEj} onInput={e => setDeuda({ ...deuda, motivo: e.currentTarget.value })} />
             </label>
-            {deuda.original === null && (
+            {deuda.id === null && (
               <>
                 <label class={campo}>
                   <span class={etiqueta}>{l.inicial} (€)</span>
@@ -139,7 +144,7 @@ export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props)
               </>
             )}
             {repetida && <p class={`${errorCls} ${span2}`}>{t.deudas.repetida}</p>}
-            {deuda.original !== null && <p class={`${muted} ${span2} text-xs`}>{t.deudas.renombrarNota}</p>}
+            {deuda.id !== null && <p class={`${muted} ${span2} text-xs`}>{t.deudas.renombrarNota}</p>}
           </div>
         </ModalFormulario>
       )}
@@ -179,21 +184,22 @@ export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props)
 
   // ------------------------------------------------------------ una deuda
   if (actual) {
+    const { x, c } = actual;
     // lo que quedaba tras cada movimiento, en orden de fecha; se enseña lo más reciente arriba
     let acumulado = 0;
-    const filas = porFecha(movimientos.map((m, i) => ({ m, i, fecha: m.fecha })).filter(({ m }) => esDe(m, actual.clave))).map(({ m, i }) => {
+    const filas = porFecha(x.movimientos.map((m, i) => ({ m, i, fecha: m.fecha }))).map(({ m, i }) => {
       acumulado = round2(acumulado + (m.tipo === 'pago' ? -m.importe : m.importe));
       return { m, i, queda: acumulado };
     }).reverse();
-    const p = actual.pendiente;
+    const p = c.pendiente;
 
     return (
       <section class={panel}>
         <button class="mb-3 cursor-pointer text-[13px] font-semibold text-muted hover:text-ink" onClick={() => onAbrir(null)}>← {l.titulo}</button>
         <div class={panelHead}>
           <div class="min-w-0">
-            <h2 class={`${h2} truncate`}>{actual.quien || t.deudas.sinNombre}</h2>
-            {actual.motivo && <p class={muted}>{actual.motivo}</p>}
+            <h2 class={`${h2} truncate`}>{x.quien || t.deudas.sinNombre}</h2>
+            {x.motivo && <p class={muted}>{x.motivo}</p>}
           </div>
           <div class="flex flex-wrap gap-2">
             <button class={btn()} onClick={() => abrirMov(-1, 'pago')}>{l.pagar}</button>
@@ -202,12 +208,10 @@ export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props)
         </div>
 
         <div class={`mb-6 rounded-xl px-5 py-4 ${p > 0 ? (lado === 'debo' ? 'bg-danger-soft' : 'bg-ok-soft') : 'bg-field'}`}>
-          <p class="text-[13px] font-medium text-ink-2">
-            {p > 0 ? t.deudas.quedaPorDevolver : p === 0 ? t.deudas.saldada : t.deudas.deMas(eur(-p))}
-          </p>
+          <p class="text-[13px] font-medium text-ink-2">{p > 0 ? t.deudas.quedaPorDevolver : p === 0 ? t.deudas.saldada : t.deudas.deMas(eur(-p))}</p>
           {p > 0 && <p class={`text-[34px] leading-tight font-bold tracking-[-.02em] tabular-nums ${color}`}>{eur(p)}</p>}
-          <p class={`${muted} text-xs`}>{l.tipo.prestamo}: {eur(actual.prestado)} · {l.tipo.pago}: {eur(actual.pagado)}</p>
-          <Progreso d={actual} />
+          <p class={`${muted} text-xs`}>{l.tipo.prestamo}: {eur(c.prestado)} · {l.tipo.pago}: {eur(c.pagado)}</p>
+          <Progreso prestado={c.prestado} pagado={c.pagado} />
         </div>
 
         <ul class={lista}>
@@ -223,18 +227,20 @@ export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props)
               <span class="font-semibold whitespace-nowrap tabular-nums">{m.tipo === 'pago' ? '−' : '+'}{eur(m.importe)}</span>
               <button class={btn('ghost', 'small')} onClick={() => abrirMov(i)}>{t.comun.editar}</button>
               <button class={icon} title={t.comun.eliminar} onClick={() => {
-                if (actual.movimientos.length === 1) return eliminarDeuda(actual);
-                if (confirm(t.deudas.confirmarEliminarMov(m.concepto || l.tipo[m.tipo], eur(m.importe)))) onChange(movimientos.filter((_, j) => j !== i));
+                if (x.movimientos.length === 1) return eliminarDeuda(x);
+                if (confirm(t.deudas.confirmarEliminarMov(m.concepto || l.tipo[m.tipo], eur(m.importe)))) {
+                  cambiarDeuda(x.id, y => ({ ...y, movimientos: y.movimientos.filter((_, j) => j !== i) }));
+                }
               }}>×</button>
             </li>
           ))}
         </ul>
 
         <div class="mt-5 flex flex-wrap gap-2">
-          <button class={btn('ghost', 'small')} onClick={() => setDeuda({ original: actual.clave, quien: actual.quien, motivo: actual.motivo, importe: '', fecha: '', notas: '' })}>
+          <button class={btn('ghost', 'small')} onClick={() => setDeuda({ id: x.id, quien: x.quien, motivo: x.motivo, importe: '', fecha: '', notas: '' })}>
             {t.deudas.cambiarNombre}
           </button>
-          <button class={btn('ghost', 'small')} onClick={() => eliminarDeuda(actual)}>{t.deudas.eliminarDeuda}</button>
+          <button class={btn('ghost', 'small')} onClick={() => eliminarDeuda(x)}>{t.deudas.eliminarDeuda}</button>
         </div>
         {modales}
       </section>
@@ -242,16 +248,7 @@ export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props)
   }
 
   // ------------------------------------------------------------ todas
-  const tarjetaDe = (d: Deuda) => (
-    <button key={d.clave} class={tarjeta} onClick={() => onAbrir(d.clave)}>
-      <span class="truncate font-semibold">{d.quien || t.deudas.sinNombre}</span>
-      <span class="truncate text-xs text-muted">{d.motivo || t.deudas.sinMotivo}</span>
-      <span class={`mt-1 text-[24px] leading-tight font-bold tracking-[-.02em] tabular-nums ${d.pendiente > 0 ? color : ''}`}>{eur(d.pendiente)}</span>
-      <span class="text-xs text-muted">{t.deudas.devuelto(eur(d.pagado), eur(d.prestado))}</span>
-      <Progreso d={d} />
-    </button>
-  );
-  const total = round2(activas.reduce((s, d) => s + d.pendiente, 0));
+  const total = round2(activas.reduce((s, { c }) => s + c.pendiente, 0));
 
   return (
     <section class={panel}>
@@ -262,24 +259,36 @@ export function Deudas({ lado, movimientos, onChange, abierta, onAbrir }: Props)
             {activas.length ? <>{t.deudas.pendiente} <b class={`tabular-nums ${color}`}>{eur(total)}</b> {t.deudas.enDeudas(activas.length)}</> : t.deudas.nadaPendiente}
           </p>
         </div>
-        <button class={btn()} onClick={() => setDeuda({ original: null, quien: '', motivo: '', importe: '', fecha: hoy(), notas: '' })}>{l.nueva}</button>
+        <button class={btn()} onClick={() => setDeuda({ id: null, quien: '', motivo: '', importe: '', fecha: hoy(), notas: '' })}>{l.nueva}</button>
       </div>
 
-      {activas.length > 0 && <div class="grid grid-cols-3 gap-3 tablet:grid-cols-2 movil:grid-cols-1">{activas.map(tarjetaDe)}</div>}
-      {todas.length === 0 && <p class={empty}>{l.vacio}</p>}
-      {todas.length > 0 && activas.length === 0 && <p class={empty}>{t.deudas.todoSaldado}</p>}
+      {activas.length > 0 && (
+        <div class="grid grid-cols-3 gap-3 tablet:grid-cols-2 movil:grid-cols-1">
+          {activas.map(({ x, c }) => (
+            <button key={x.id} class={tarjeta} onClick={() => onAbrir(x.id)}>
+              <span class="truncate font-semibold">{x.quien || t.deudas.sinNombre}</span>
+              <span class="truncate text-xs text-muted">{x.motivo || t.deudas.sinMotivo}</span>
+              <span class={`mt-1 text-[24px] leading-tight font-bold tracking-[-.02em] tabular-nums ${c.pendiente > 0 ? color : ''}`}>{eur(c.pendiente)}</span>
+              <span class="text-xs text-muted">{t.deudas.devuelto(eur(c.pagado), eur(c.prestado))}</span>
+              <Progreso prestado={c.prestado} pagado={c.pagado} />
+            </button>
+          ))}
+        </div>
+      )}
+      {delLado.length === 0 && <p class={empty}>{l.vacio}</p>}
+      {delLado.length > 0 && activas.length === 0 && <p class={empty}>{t.deudas.todoSaldado}</p>}
 
       {saldadas.length > 0 && (
         <div class="mt-7">
           <h3 class={`${etiqueta} mb-1.5`}>{t.deudas.saldadas}</h3>
           <ul class={lista}>
-            {saldadas.map(d => (
-              <li key={d.clave} class={listaFila}>
+            {saldadas.map(({ x, c }) => (
+              <li key={x.id} class={listaFila}>
                 <div class="min-w-0 flex-1">
-                  <p class="truncate font-semibold">{d.quien || t.deudas.sinNombre}{d.motivo && <span class="font-normal text-muted"> · {d.motivo}</span>}</p>
-                  <p class="truncate text-xs text-muted">{eur(d.prestado)}{d.ultimo ? ` · ${t.deudas.ultimaVez(fecha(d.ultimo))}` : ''}</p>
+                  <p class="truncate font-semibold">{x.quien || t.deudas.sinNombre}{x.motivo && <span class="font-normal text-muted"> · {x.motivo}</span>}</p>
+                  <p class="truncate text-xs text-muted">{eur(c.prestado)}{c.ultimo ? ` · ${t.deudas.ultimaVez(fecha(c.ultimo))}` : ''}</p>
                 </div>
-                <button class={btn('ghost', 'small')} onClick={() => onAbrir(d.clave)}>{t.deudas.ver}</button>
+                <button class={btn('ghost', 'small')} onClick={() => onAbrir(x.id)}>{t.deudas.ver}</button>
               </li>
             ))}
           </ul>

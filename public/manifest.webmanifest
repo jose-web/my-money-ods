@@ -1,7 +1,7 @@
 {
   "name": "Mi dinero",
   "short_name": "Mi dinero",
-  "description": "Gastos de la casa y deudas sobre tu hoja de cálculo .ods o de Google, sin servidor.",
+  "description": "Lo que debo y lo que me deben, sobre tu hoja de cálculo .ods o de Google, sin servidor.",
   "lang": "es",
   "start_url": ".",
   "scope": ".",

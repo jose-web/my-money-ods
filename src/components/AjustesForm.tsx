@@ -1,6 +1,5 @@
 // src/components/AjustesForm.tsx
-// Hoja Ajustes: los nombres de las dos personas, las categorías de gastos y el correo de las copias.
-import { useState } from 'preact/hooks';
+// Hoja Ajustes: el correo de las copias de seguridad, y cómo está hecha la hoja por si se edita a mano.
 import type { Ajustes } from '../lib/registro.ts';
 import { campo, etiqueta, gridForm, h2, input, muted, panel, panelHead, span2, span4 } from './ui.ts';
 
@@ -10,10 +9,6 @@ interface Props {
 }
 
 export function AjustesForm({ ajustes, onChange }: Props) {
-  // las categorías se escriben una por línea; se aplican al salir del campo para no perder líneas vacías al teclear
-  const [categorias, setCategorias] = useState(ajustes.categorias.join('\n'));
-  const set = (cambio: Partial<Ajustes>) => onChange({ ...ajustes, ...cambio });
-
   return (
     <section class={panel}>
       <div class={panelHead}>
@@ -24,29 +19,14 @@ export function AjustesForm({ ajustes, onChange }: Props) {
       </div>
       <div class={gridForm}>
         <label class={`${campo} ${span2}`}>
-          <span class={etiqueta}>Persona a la que debo</span>
-          <input class={input} value={ajustes.leDebo} placeholder="Nombre" onInput={e => set({ leDebo: e.currentTarget.value })} />
-          <span class={`${muted} text-xs`}>Hoja «Le debo».</span>
-        </label>
-        <label class={`${campo} ${span2}`}>
-          <span class={etiqueta}>Persona que me debe</span>
-          <input class={input} value={ajustes.meDebe} placeholder="Nombre" onInput={e => set({ meDebe: e.currentTarget.value })} />
-          <span class={`${muted} text-xs`}>Hoja «Me debe».</span>
-        </label>
-        <label class={`${campo} ${span2}`}>
-          <span class={etiqueta}>Categorías de gastos</span>
-          <textarea class={`${input} resize-y`} rows={8} value={categorias} onInput={e => setCategorias(e.currentTarget.value)}
-            onBlur={() => set({ categorias: [...new Set(categorias.split('\n').map(s => s.trim()).filter(Boolean))] })} />
-          <span class={`${muted} text-xs`}>Una por línea. Quitar una no cambia los gastos que ya la tienen.</span>
-        </label>
-        <label class={`${campo} ${span2} self-start`}>
           <span class={etiqueta}>Email para copias de seguridad</span>
-          <input class={input} type="email" value={ajustes.copiaEmail} placeholder="tu@correo.com" onInput={e => set({ copiaEmail: e.currentTarget.value })} />
+          <input class={input} type="email" value={ajustes.copiaEmail} placeholder="tu@correo.com" onInput={e => onChange({ ...ajustes, copiaEmail: e.currentTarget.value })} />
           <span class={`${muted} text-xs`}>A quién se manda la copia con «⋯ › Copia de seguridad por correo».</span>
         </label>
         <p class={`${span4} ${muted} text-xs`}>
-          En Hojas de cálculo de Google puedes ver y cambiar los datos a mano: la web los leerá mientras no cambies los nombres de las
-          hojas ni el orden de sus columnas (FECHA, CONCEPTO, CATEGORÍA o TIPO, IMPORTE, NOTAS). En TIPO, «PRÉSTAMO» o «PAGO».
+          En Hojas de cálculo de Google puedes ver y cambiar los datos a mano en las hojas «Debo» y «Me deben»: cada fila es un
+          movimiento, y las filas con el mismo QUIÉN y MOTIVO son una misma deuda. Columnas: QUIÉN, MOTIVO, FECHA, CONCEPTO,
+          TIPO («PRÉSTAMO» o «PAGO»), IMPORTE, NOTAS. No cambies los nombres de las hojas ni el orden de las columnas.
         </p>
       </div>
     </section>

@@ -1,6 +1,6 @@
 // src/components/App.tsx
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { abrir, guardar, type Datos, type Registro } from '../lib/registro.ts';
+import { abrir, guardar, type Datos, type Lado, type Registro } from '../lib/registro.ts';
 import { descargar, desdeFile, elegirArchivo, escribir, guardarComo, puedeGuardarEncima, reabrir, type Archivo, type FileHandle } from '../lib/archivo.ts';
 import { olvidar, recordar, recuperar, type Recuerdo } from '../lib/recuerdo.ts';
 import {
@@ -10,26 +10,24 @@ import {
 import { ElegirDrive } from './ElegirDrive.tsx';
 import { PaginaDrive } from './PaginaDrive.tsx';
 import { Resumen } from './Resumen.tsx';
-import { Gastos } from './Gastos.tsx';
-import { Deuda } from './Deuda.tsx';
+import { Deudas } from './Deudas.tsx';
 import { AjustesForm } from './AjustesForm.tsx';
 import { ModalCorreo } from './ModalCorreo.tsx';
 import { ahoraLocal, fecha } from '../lib/format.ts';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
 
 // 'drive' es la página de Google Drive: se llega desde el menú «⋯», no tiene pestaña
-type Tab = 'resumen' | 'gastos' | 'ledebo' | 'medebe' | 'ajustes' | 'drive';
+type Tab = 'resumen' | Lado | 'ajustes' | 'drive';
 // pestaña, texto, texto corto e icono (trazo SVG de 24×24); los dos últimos son para la barra inferior del móvil
 const TABS: [Tab, string, string, string][] = [
   ['resumen', 'Resumen', 'Resumen', 'M4 20V11M10 20V5M16 20v-6M21 20H3'],
-  ['gastos', 'Gastos casa', 'Gastos', 'M4 11l8-7 8 7v9H4v-9zM10 20v-5h4v5'],
-  ['ledebo', 'Le debo', 'Le debo', 'M12 5v14M6 13l6 6 6-6'],
-  ['medebe', 'Me debe', 'Me debe', 'M12 19V5M6 11l6-6 6 6'],
+  ['debo', 'Debo', 'Debo', 'M12 5v14M6 13l6 6 6-6'],
+  ['meDeben', 'Me deben', 'Me deben', 'M12 19V5M6 11l6-6 6 6'],
   ['ajustes', 'Ajustes', 'Ajustes', 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4'],
 ];
 // Pestañas: píldoras en la barra superior; en tablet, en una fila propia; en móvil, barra fija abajo
 const NAV = 'flex gap-0.5 rounded-full bg-ink/8 p-0.75 tablet:order-3 tablet:col-span-full tablet:max-w-full tablet:justify-self-start tablet:overflow-x-auto '
-  + 'movil:fixed movil:inset-x-0 movil:bottom-0 movil:grid movil:max-w-none movil:grid-cols-5 movil:justify-self-stretch movil:gap-0 movil:overflow-visible '
+  + 'movil:fixed movil:inset-x-0 movil:bottom-0 movil:grid movil:max-w-none movil:grid-cols-4 movil:justify-self-stretch movil:gap-0 movil:overflow-visible '
   + 'movil:rounded-none movil:border-t movil:border-ink/8 movil:bg-paper/85 movil:px-1 movil:pt-1.5 movil:pb-[max(6px,env(safe-area-inset-bottom))] '
   + 'movil:shadow-[0_-10px_30px_-18px_rgba(0,0,0,.35)] movil:backdrop-blur-xl movil:backdrop-saturate-150';
 const NAV_TAB = 'cursor-pointer appearance-none rounded-full border-0 px-3.5 py-1.75 text-[13px] font-semibold whitespace-nowrap [-webkit-tap-highlight-color:transparent] '
@@ -72,6 +70,8 @@ export default function App() {
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [datos, setDatos] = useState<Datos | null>(null);
   const [tab, setTab] = useState<Tab>('resumen');
+  // la deuda abierta en cada lado (su clave), o null para ver la lista
+  const [abierta, setAbierta] = useState<Record<Lado, string | null>>({ debo: null, meDeben: null });
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -140,6 +140,7 @@ export default function App() {
       setDatos(datos);
       setDirty(false);
       setTab('resumen');
+      setAbierta({ debo: null, meDeben: null });
       setPendiente(null);
       setSinAvisoCopia(false);
       setAuto('');
@@ -435,7 +436,7 @@ export default function App() {
           <p class="grid size-14 place-items-center rounded-2xl bg-primary text-[30px] font-bold">€</p>
           <h1 class="mt-4 mb-3 text-[34px] leading-[1.1] font-bold tracking-[-.02em]">Mi dinero</h1>
           <p class="mb-6.5 text-[15px] text-ink-2">
-            Gastos de la casa, lo que debes y lo que te deben, sobre tu hoja de cálculo. Los datos se leen y se guardan en ese mismo
+            Lo que debes y lo que te deben (al banco por la casa, a tu prima por las vacaciones…), sobre tu hoja de cálculo. Los datos se leen y se guardan en ese mismo
             archivo, en tu dispositivo{hayDrive ? ' o como Hoja de cálculo en tu Google Drive' : ''}: no pasan por ningún servidor nuestro.
           </p>
           <div class="mb-3 flex flex-wrap gap-2.5">
@@ -494,7 +495,7 @@ export default function App() {
           {TABS.map(([id, label, corto, icono]) => {
             const activa = tab === id;
             return (
-              <button key={id} role="tab" aria-selected={activa} onClick={() => setTab(id)}
+              <button key={id} role="tab" aria-selected={activa} onClick={() => { if (activa && (id === 'debo' || id === 'meDeben')) setAbierta(a => ({ ...a, [id]: null })); setTab(id); }}
                 class={`${NAV_TAB} ${activa ? 'bg-white text-ink movil:font-semibold' : 'bg-transparent text-ink-2 hover:text-ink movil:text-muted'}`}>
                 <span class={`${NAV_ICONO} ${activa ? 'movil:bg-primary movil:text-ink' : ''}`}>
                   <svg class="size-5.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={activa ? 2 : 1.7} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icono} /></svg>
@@ -557,17 +558,10 @@ export default function App() {
       )}
 
       <main class="mx-auto max-w-295 px-5 pt-6 pb-20 movil:px-3 movil:pt-3.5 movil:pb-[calc(96px+env(safe-area-inset-bottom))]">
-        {tab === 'resumen' && <Resumen datos={datos} onIr={setTab} />}
-        {tab === 'gastos' && (
-          <Gastos gastos={datos.gastos} categorias={datos.ajustes.categorias} onChange={gastos => cambiar(d => ({ ...d, gastos }))} />
-        )}
-        {tab === 'ledebo' && (
-          <Deuda key="ledebo" sentido="debo" persona={datos.ajustes.leDebo} movimientos={datos.leDebo}
-            onChange={leDebo => cambiar(d => ({ ...d, leDebo }))} onAjustes={() => setTab('ajustes')} />
-        )}
-        {tab === 'medebe' && (
-          <Deuda key="medebe" sentido="meDebe" persona={datos.ajustes.meDebe} movimientos={datos.meDebe}
-            onChange={meDebe => cambiar(d => ({ ...d, meDebe }))} onAjustes={() => setTab('ajustes')} />
+        {tab === 'resumen' && <Resumen datos={datos} onIr={(lado, clave) => { setAbierta(a => ({ ...a, [lado]: clave })); setTab(lado); }} />}
+        {(tab === 'debo' || tab === 'meDeben') && (
+          <Deudas key={tab} lado={tab} movimientos={datos[tab]} onChange={movs => cambiar(d => ({ ...d, [tab]: movs }))}
+            abierta={abierta[tab]} onAbrir={clave => setAbierta(a => ({ ...a, [tab]: clave }))} />
         )}
         {tab === 'ajustes' && <AjustesForm ajustes={datos.ajustes} onChange={ajustes => cambiar(d => ({ ...d, ajustes }))} />}
         {tab === 'drive' && (

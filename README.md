@@ -1,25 +1,25 @@
 # Mi dinero (web)
 
-Web estática (Astro + Preact + Tailwind) para llevar las cuentas de casa sobre una hoja de cálculo `.ods`
-o una Hoja de cálculo de Google. Todo ocurre en el navegador: no hay servidor.
+Web estática (Astro + Preact + Tailwind) para llevar lo que debo y lo que me deben sobre una hoja de cálculo
+`.ods` o una Hoja de cálculo de Google. Todo ocurre en el navegador: no hay servidor.
 
-- **Resumen**: gasto de la casa del mes (y el del anterior), lo que debo y lo que me deben; gastos de los últimos 12 meses y los del mes por categoría.
-- **Gastos casa**: gastos por meses con su total, filtros por mes, categoría y texto.
-- **Le debo / Me debe**: préstamos y pagos con una persona; lo pendiente y lo que quedaba tras cada movimiento.
-- **Ajustes**: nombres de las dos personas, categorías de gastos y correo para las copias de seguridad.
+- **Resumen**: total que debo, total que me deben y el balance; cada deuda pendiente de los dos lados.
+- **Debo / Me deben**: tantas deudas como quieras (el banco por la casa, mi prima por las vacaciones, mi hermana
+  por el préstamo del coche…). Cada una con lo que queda, lo devuelto y sus préstamos y pagos; las saldadas van aparte.
+- **Ajustes**: correo para las copias de seguridad.
 - **Guardar**: en Chrome/Edge sobrescribe el mismo archivo; en otros navegadores descarga el `.ods` actualizado.
   Con el archivo en Google Drive, los cambios se guardan solos y se hace una copia de seguridad al día.
 
 ## El archivo
 
-Cuatro hojas. En las tres primeras la cabecera va en la fila 1 y los datos desde la 2; en la columna G hay un
-resumen con fórmula para verlo en Hojas de cálculo (la web no lo toca).
+Tres hojas. En Debo y Me deben la cabecera va en la fila 1 y cada fila desde la 2 es un movimiento; las filas
+con el mismo QUIÉN y MOTIVO son una misma deuda. En la columna I hay el total pendiente con fórmula, para verlo en
+Hojas de cálculo.
 
 | Hoja | Columnas |
 |---|---|
-| Gastos casa | FECHA, CONCEPTO, CATEGORÍA, IMPORTE, NOTAS |
-| Le debo | FECHA, CONCEPTO, TIPO (`PRÉSTAMO` o `PAGO`), IMPORTE, NOTAS |
-| Me debe | igual que Le debo |
+| Debo | QUIÉN, MOTIVO, FECHA, CONCEPTO, TIPO (`PRÉSTAMO` o `PAGO`), IMPORTE, NOTAS |
+| Me deben | igual que Debo |
 | Ajustes | AJUSTE, VALOR |
 
 Si abres otro `.ods` sin estas hojas, se crean al guardar (las demás hojas se conservan).

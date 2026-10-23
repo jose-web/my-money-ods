@@ -257,6 +257,75 @@ Para recuperarla, descarga el archivo adjunto y ábrelo en la web, en LibreOffic
     ninguna: 'Ninguna todavía.',
   },
 
+  estimacion: {
+    titulo: 'Estimación',
+    saldada: 'Saldada.',
+    deMas: 'Se ha devuelto de más: no queda nada por pagar.',
+    sinPagos: 'Todavía no hay pagos: con el primero se podrá estimar cuándo quedará saldada.',
+    estimada: (mes: string, duracion: string, ritmo: string) => `Al ritmo de ${ritmo} al mes, quedaría saldada hacia ${mes} (dentro de ${duracion}).`,
+    lejos: (ritmo: string) => `Al ritmo de ${ritmo} al mes tardaría más de 100 años en quedar saldada.`,
+    base: (n: number, desde: string) => `Media de ${plural(n, 'pago', 'pagos')} desde el ${desde}.`,
+    masRapido: (ritmo: string, mes: string) => `Con ${ritmo} al mes (un 25 % más), hacia ${mes}.`,
+    corta: (mes: string) => `≈ ${mes}`,
+    duracion: (anios: number, meses: number) =>
+      [anios ? plural(anios, 'año', 'años') : '', meses ? plural(meses, 'mes', 'meses') : ''].filter(Boolean).join(' y ') || 'menos de un mes',
+    explicar: 'Explicar con IA',
+    explicando: 'La IA está escribiendo…',
+    deIA: 'Escrito por la IA de tu navegador: puede equivocarse.',
+  },
+
+  ia: {
+    boton: 'Asistente',
+    titulo: 'Asistente',
+    subtitulo: 'IA en tu dispositivo (Gemini Nano): tus datos no salen de aquí.',
+    nueva: 'Nueva conversación',
+    comprobando: 'Comprobando la IA del navegador…',
+    sinApi: 'Este navegador no trae IA integrada. Funciona en Google Chrome de escritorio reciente (Windows, macOS, Linux o '
+      + 'ChromeOS); en el móvil, todavía no.',
+    flags: 'Si usas Chrome de escritorio y no aparece, activa chrome://flags/#prompt-api-for-gemini-nano y '
+      + 'chrome://flags/#optimization-guide-on-device-model, y reinicia Chrome.',
+    noDisponible: 'Chrome tiene la IA integrada, pero no puede usarla en este dispositivo: necesita espacio libre en el disco, '
+      + 'memoria y una tarjeta gráfica o un procesador compatibles.',
+    descargable: 'Para usar la IA, Chrome tiene que descargar una sola vez su modelo (Gemini Nano, unos GB). Después funciona '
+      + 'sin conexión.',
+    descargar: 'Descargar y activar',
+    descargando: (pct: number) => `Descargando el modelo… ${pct} %`,
+    lista: 'La IA está lista en este navegador.',
+    bienvenida: 'Pregúntame lo que quieras de tus deudas: cuánto debes, a quién, cuándo terminarás de pagar…',
+    sugerencias: ['¿Cuánto debo en total?', '¿Cuándo terminaré de pagar todo?', '¿Quién me debe más dinero?'],
+    escribe: 'Escribe tu pregunta…',
+    enviar: 'Enviar',
+    parar: 'Parar',
+    pensando: 'Pensando…',
+    fallo: (e: string) => `La IA ha fallado: ${e}`,
+    aviso: 'La IA puede equivocarse: comprueba las cifras importantes en tus deudas.',
+    ajustes: 'Asistente con IA',
+    ajustesNota: 'El chat de abajo a la derecha y las explicaciones de las estimaciones usan la IA integrada del navegador. '
+      + 'Funciona en el propio dispositivo: tus datos no se envían a ningún sitio.',
+
+    // lo que se le da al modelo
+    sistemaChat: (datos: string) => 'Eres el asistente de «Mi dinero», una web en la que el usuario apunta lo que debe y lo que le deben. '
+      + 'Responde siempre en español, de forma breve y clara, tratando al usuario de tú. Usa SOLO los datos de abajo; si algo no '
+      + 'está, dilo. Si la cifra que te piden ya aparece, cópiala tal cual en vez de calcularla. Las fechas en que quedará saldada '
+      + 'cada deuda ya están calculadas en «Estimación»: usa esas. No inventes deudas, personas ni movimientos.\n\nDATOS:\n' + datos,
+    sistemaEstimacion: 'Eres un asesor de finanzas personales amable y prudente. Escribes en español, tratando al usuario de tú, '
+      + 'en 2 o 3 frases cortas y sin listas. Usas solo las cifras que te dan, copiándolas tal cual: no calculas otras.',
+    pedirEstimacion: (datos: string) => 'Explícame cuándo quedará saldada esta deuda y si el ritmo es bueno; si se puede, '
+      + 'di cómo acabar antes con la opción de pagar más. Datos:\n' + datos,
+
+    // los datos, en texto
+    hoy: (f: string) => `Fecha de hoy: ${f}. Importes en euros.`,
+    debo: 'LO QUE DEBO (deudas del usuario con otros):',
+    meDeben: 'LO QUE ME DEBEN (lo que otros deben al usuario):',
+    ninguna: '(ninguna)',
+    deuda: (nombre: string, prestado: string, pagado: string, pendiente: string) => `- ${nombre}: prestado ${prestado}, devuelto ${pagado}, pendiente ${pendiente}.`,
+    movimientos: 'Movimientos',
+    omitidos: (n: number) => `(${plural(n, 'movimiento anterior omitido', 'movimientos anteriores omitidos')})`,
+    prestamo: 'préstamo',
+    pago: 'pago',
+    totales: (debo: string, meDeben: string, balance: string) => `TOTALES: debo ${debo}; me deben ${meDeben}; balance (me deben − debo) ${balance}.`,
+  },
+
   // errores de src/lib
   errores: {
     popup: 'El navegador ha bloqueado la ventana de Google. Vuelve a pulsar el botón.',
@@ -521,6 +590,72 @@ To restore it, download the attached file and open it in the web app or LibreOff
     sinHojas: 'There are no sheets in the folder.',
     copiasNota: 'To restore one: “Open here” opens it like any sheet (whatever you save goes to that backup).',
     ninguna: 'None yet.',
+  },
+
+  estimacion: {
+    titulo: 'Estimate',
+    saldada: 'Settled.',
+    deMas: 'It has been overpaid: nothing left to pay.',
+    sinPagos: 'No payments yet: after the first one, it can estimate when it will be settled.',
+    estimada: (mes: string, duracion: string, ritmo: string) => `At ${ritmo} a month, it would be settled around ${mes} (in ${duracion}).`,
+    lejos: (ritmo: string) => `At ${ritmo} a month it would take more than 100 years to settle.`,
+    base: (n: number, desde: string) => `Average of ${n} ${n === 1 ? 'payment' : 'payments'} since ${desde}.`,
+    masRapido: (ritmo: string, mes: string) => `With ${ritmo} a month (25% more), around ${mes}.`,
+    corta: (mes: string) => `≈ ${mes}`,
+    duracion: (anios: number, meses: number) =>
+      [anios ? `${anios} ${anios === 1 ? 'year' : 'years'}` : '', meses ? `${meses} ${meses === 1 ? 'month' : 'months'}` : ''].filter(Boolean).join(' and ') || 'less than a month',
+    explicar: 'Explain with AI',
+    explicando: 'The AI is writing…',
+    deIA: 'Written by your browser’s AI: it can make mistakes.',
+  },
+
+  ia: {
+    boton: 'Assistant',
+    titulo: 'Assistant',
+    subtitulo: 'On-device AI (Gemini Nano): your data never leaves this device.',
+    nueva: 'New conversation',
+    comprobando: 'Checking the browser’s AI…',
+    sinApi: 'This browser has no built-in AI. It works in recent desktop Google Chrome (Windows, macOS, Linux or ChromeOS); '
+      + 'not on mobile yet.',
+    flags: 'If you use desktop Chrome and it doesn’t show up, enable chrome://flags/#prompt-api-for-gemini-nano and '
+      + 'chrome://flags/#optimization-guide-on-device-model, then restart Chrome.',
+    noDisponible: 'Chrome has built-in AI but can’t use it on this device: it needs free disk space, memory and a compatible '
+      + 'graphics card or processor.',
+    descargable: 'To use the AI, Chrome has to download its model once (Gemini Nano, a few GB). After that it works offline.',
+    descargar: 'Download and enable',
+    descargando: (pct: number) => `Downloading the model… ${pct}%`,
+    lista: 'The AI is ready in this browser.',
+    bienvenida: 'Ask me anything about your debts: how much you owe, to whom, when you’ll finish paying…',
+    sugerencias: ['How much do I owe in total?', 'When will I finish paying everything?', 'Who owes me the most?'],
+    escribe: 'Type your question…',
+    enviar: 'Send',
+    parar: 'Stop',
+    pensando: 'Thinking…',
+    fallo: (e: string) => `The AI failed: ${e}`,
+    aviso: 'The AI can make mistakes: check important figures in your debts.',
+    ajustes: 'AI assistant',
+    ajustesNota: 'The chat at the bottom right and the estimate explanations use the browser’s built-in AI. It runs on the '
+      + 'device itself: your data isn’t sent anywhere.',
+
+    sistemaChat: (datos: string) => 'You are the assistant of “My money”, a web app where the user records what they owe and what they are owed. '
+      + 'Always answer in English, briefly and clearly. Use ONLY the data below; if something isn’t there, say so. If the figure '
+      + 'you are asked for already appears, copy it as is instead of calculating it. The dates when each debt will be settled are '
+      + 'already calculated under “Estimate”: use those. Don’t make up debts, people or entries.\n\nDATA:\n' + datos,
+    sistemaEstimacion: 'You are a friendly, careful personal finance adviser. You write in English, in 2 or 3 short sentences and '
+      + 'no lists. You only use the figures you are given, copying them as they are: you don’t calculate new ones.',
+    pedirEstimacion: (datos: string) => 'Explain when this debt will be settled and whether the pace is good; if possible, say '
+      + 'how to finish sooner using the pay-more option. Data:\n' + datos,
+
+    hoy: (f: string) => `Today’s date: ${f}. Amounts in euros.`,
+    debo: 'WHAT I OWE (the user’s debts to others):',
+    meDeben: 'WHAT I’M OWED (what others owe the user):',
+    ninguna: '(none)',
+    deuda: (nombre: string, prestado: string, pagado: string, pendiente: string) => `- ${nombre}: lent ${prestado}, paid back ${pagado}, outstanding ${pendiente}.`,
+    movimientos: 'Entries',
+    omitidos: (n: number) => `(${n} earlier ${n === 1 ? 'entry' : 'entries'} left out)`,
+    prestamo: 'loan',
+    pago: 'payment',
+    totales: (debo: string, meDeben: string, balance: string) => `TOTALS: I owe ${debo}; I’m owed ${meDeben}; balance (owed to me − I owe) ${balance}.`,
   },
 
   errores: {

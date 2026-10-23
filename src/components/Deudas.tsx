@@ -4,8 +4,13 @@
 // de cada uno. Todo se edita en modales. Cada deuda es una hoja del archivo (ver src/lib/registro.ts).
 import { useState } from 'preact/hooks';
 import { cifras, claveDeuda, hoy, nuevoId, porFecha, round2, type Deuda, type Lado, type Movimiento, type Tipo } from '../lib/registro.ts';
-import { eur, fecha, numeroEditable, parseNum } from '../lib/format.ts';
-import { t } from '../lib/i18n.ts';
+import { eur, fecha, mesAnio, numeroEditable, parseNum } from '../lib/format.ts';
+import { estimar } from '../lib/estimacion.ts';
+import { detalleEstimacion, fraseEstimacion, textoDeuda } from '../lib/contexto.ts';
+import { preguntarUnaVez } from '../lib/ia.ts';
+import { idioma, t } from '../lib/i18n.ts';
+import { TextoIA } from './Chat.tsx';
+import { activarIA, usarIA } from './usarIA.ts';
 import { ModalFormulario } from './ModalFormulario.tsx';
 import { Selector } from './Selector.tsx';
 import { btn, campo, empty, error as errorCls, etiqueta, h2, icon, input, lista, listaFila, muted, panel, panelHead, span2 } from './ui.ts';
@@ -40,6 +45,15 @@ interface EdicionMov {
 const pastilla = 'rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap';
 const tarjeta = 'flex cursor-pointer flex-col gap-1 rounded-xl border border-line bg-paper p-4.5 text-left transition hover:border-ink';
 
+/** Explicación de la IA de una estimación; `datos` es el texto que se le dio, para no enseñarla si la deuda cambió. */
+interface Explicacion {
+  id: string;
+  datos: string;
+  texto: string;
+  escribiendo: boolean;
+  fallo: string;
+}
+
 /** Barra de lo devuelto sobre lo prestado. */
 function Progreso({ prestado, pagado }: { prestado: number; pagado: number }) {
   const pct = prestado > 0 ? Math.min(100, (pagado / prestado) * 100) : 0;
@@ -53,6 +67,8 @@ function Progreso({ prestado, pagado }: { prestado: number; pagado: number }) {
 export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
   const [deuda, setDeuda] = useState<EdicionDeuda | null>(null);
   const [mov, setMov] = useState<EdicionMov | null>(null);
+  const [explicacion, setExplicacion] = useState<Explicacion | null>(null);
+  const ia = usarIA();
   // textos de este lado
   const l = t.deudas[lado];
   const color = lado === 'debo' ? 'text-danger' : 'text-ok';
@@ -108,6 +124,22 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
     setMov(null);
   }
   const editarMov = (cambio: Partial<Movimiento>) => mov && setMov({ ...mov, m: { ...mov.m, ...cambio } });
+
+  /** Pide a la IA que explique la estimación de la deuda abierta (las cifras ya van calculadas en el texto). */
+  async function explicar(x: Deuda) {
+    const datos = textoDeuda(x, hoy(), 10);
+    const base = { id: x.id, datos, texto: '', escribiendo: true, fallo: '' };
+    setExplicacion(base);
+    try {
+      const texto = await preguntarUnaVez({
+        sistema: t.ia.sistemaEstimacion, pregunta: t.ia.pedirEstimacion(datos), idioma,
+        onTrozo: a => setExplicacion(e => (e?.id === x.id ? { ...e, texto: a } : e)),
+      });
+      setExplicacion(e => (e?.id === x.id ? { ...e, texto, escribiendo: false } : e));
+    } catch (e) {
+      setExplicacion(ex => (ex?.id === x.id ? { ...ex, escribiendo: false, fallo: t.ia.fallo((e as Error).message) } : ex));
+    }
+  }
 
   // ------------------------------------------------------------ modales
   const modales = (
@@ -214,6 +246,32 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
           <Progreso prestado={c.prestado} pagado={c.pagado} />
         </div>
 
+        {(() => {
+          const e = estimar(x, hoy());
+          if (e.tipo === 'saldada') return null;
+          const vigente = explicacion?.id === x.id && explicacion.datos === textoDeuda(x, hoy(), 10) ? explicacion : null;
+          return (
+            <div class="mb-6 rounded-xl border border-line px-5 py-4">
+              <p class={`${etiqueta} mb-1`}>{t.estimacion.titulo}</p>
+              <p class="font-medium">{fraseEstimacion(e)}</p>
+              {detalleEstimacion(e).map(d => <p key={d} class={`${muted} text-xs`}>{d}</p>)}
+              {ia.estado === 'lista' && e.tipo !== 'de-mas' && !vigente?.escribiendo && (
+                <button class={`${btn('ghost', 'small')} mt-3`} onClick={() => explicar(x)}>✦ {t.estimacion.explicar}</button>
+              )}
+              {ia.estado === 'descargable' && (
+                <button class={`${btn('ghost', 'small')} mt-3`} onClick={activarIA}>✦ {t.ia.descargar}</button>
+              )}
+              {vigente && (
+                <div class="mt-3 rounded-lg bg-field px-3.5 py-3 text-[13.5px]">
+                  {vigente.texto ? <TextoIA texto={vigente.texto} /> : <p class={muted}>{t.estimacion.explicando}</p>}
+                  {vigente.fallo && <p class={`${errorCls} mt-1`}>{vigente.fallo}</p>}
+                  {!vigente.escribiendo && vigente.texto && <p class={`${muted} mt-1.5 text-[11px]`}>{t.estimacion.deIA}</p>}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         <ul class={lista}>
           {filas.map(({ m, i, queda }) => (
             <li key={i} class={listaFila}>
@@ -271,6 +329,10 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
               <span class={`mt-1 text-[24px] leading-tight font-bold tracking-[-.02em] tabular-nums ${c.pendiente > 0 ? color : ''}`}>{eur(c.pendiente)}</span>
               <span class="text-xs text-muted">{t.deudas.devuelto(eur(c.pagado), eur(c.prestado))}</span>
               <Progreso prestado={c.prestado} pagado={c.pagado} />
+              {(() => {
+                const e = estimar(x, hoy());
+                return e.tipo === 'estimada' && e.meses < 1200 && <span class="mt-1 text-xs text-ink-2">{t.estimacion.corta(mesAnio(e.mes))}</span>;
+              })()}
             </button>
           ))}
         </div>

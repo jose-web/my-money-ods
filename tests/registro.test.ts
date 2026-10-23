@@ -9,6 +9,8 @@ const { OdsDocument } = await import('../src/lib/ods.ts');
 const i18n = await import('../src/lib/i18n.ts');
 const { setIdioma } = i18n;
 const { parseNum, numeroEditable } = await import('../src/lib/format.ts');
+const { estimar, sumarMeses } = await import('../src/lib/estimacion.ts');
+const { textoDatos, versionesDatos, fraseEstimacion } = await import('../src/lib/contexto.ts');
 import type { Deuda, Lado, Movimiento } from '../src/lib/registro.ts';
 // el test va en español (en Node el idioma del sistema podría ser otro)
 setIdioma('es');
@@ -110,6 +112,38 @@ assert.deepEqual(migrado.datos.deudas.map(d => [d.lado, d.quien, d.movimientos.l
   [['debo', 'Banco', 2, 900], ['debo', 'Hermana', 1, 300], ['meDeben', 'Prima', 1, 50]]);
 const nuevo = await OdsDocument.open(await guardar(migrado.registro, migrado.datos));
 assert.deepEqual(nuevo.sheetNames(), ['Ajustes', 'Debo · Banco · Casa', 'Debo · Hermana · Coche', 'Me deben · Prima · Viaje']);
+
+// estimación de cuándo queda saldada: al ritmo medio de los pagos desde el primero hasta hoy
+assert.equal(sumarMeses('2026-11', 3), '2027-02');
+const hipoteca = deuda('debo', 'Banco', 'Casa', [mov('2026-01-01', 'prestamo', 12000), mov('2026-02-01', 'pago', 500), mov('2026-03-01', 'pago', 500)]);
+const e = estimar(hipoteca, '2026-04-01');
+assert.equal(e.tipo, 'estimada');
+if (e.tipo === 'estimada') {
+  // 1000 € en 59 días (1,94 meses) → 515,89 €/mes; quedan 11000 € → 22 meses → febrero de 2028
+  assert.deepEqual([e.ritmo, e.meses, e.mes, e.pagos, e.desde], [515.89, 22, '2028-02', 2, '2026-02-01']);
+  assert.deepEqual(e.masRapido, { ritmo: 644.86, meses: 18, mes: '2027-10' });
+}
+assert.equal(fraseEstimacion(e).replace(/\s/g, ' '), 'Al ritmo de 515,89 € al mes, quedaría saldada hacia febrero de 2028 (dentro de 1 año y 10 meses).');
+// un solo pago de hoy: cuenta como un mes
+const e1 = estimar(deuda('meDeben', 'Ana', '', [mov('2026-04-01', 'prestamo', 300), mov('2026-04-01', 'pago', 100)]), '2026-04-01');
+assert.ok(e1.tipo === 'estimada' && e1.ritmo === 100 && e1.meses === 2 && e1.mes === '2026-06');
+assert.equal(estimar(deuda('debo', 'X', '', [mov('2026-01-01', 'prestamo', 50)]), '2026-04-01').tipo, 'sin-pagos');
+assert.equal(estimar(deuda('debo', 'X', '', [mov('2026-01-01', 'prestamo', 50), mov('2026-02-01', 'pago', 50)]), '2026-04-01').tipo, 'saldada');
+assert.equal(estimar(deuda('debo', 'X', '', [mov('2026-01-01', 'prestamo', 50), mov('2026-02-01', 'pago', 60)]), '2026-04-01').tipo, 'de-mas');
+// pagos minúsculos: no da una fecha absurda
+const lenta = estimar(deuda('debo', 'X', '', [mov('2020-01-01', 'prestamo', 1e6), mov('2020-01-02', 'pago', 1)]), '2026-04-01');
+assert.ok(lenta.tipo === 'estimada' && lenta.meses === 1200);
+
+// los datos para la IA: cifras, estimación, movimientos y totales; recortados si son muchos
+const paraIA = textoDatos({ deudas: [hipoteca], ajustes: datos.ajustes }, '2026-04-01').replace(/\s+/g, ' ');
+assert.ok(paraIA.includes('Banco · Casa: prestado 12.000,00 €, devuelto 1000,00 €, pendiente 11.000,00 €.'), paraIA);
+assert.ok(paraIA.includes('Estimación: Al ritmo de 515,89 €'));
+assert.ok(paraIA.includes('01/02/2026 pago 500,00 €'));
+assert.ok(paraIA.includes('TOTALES: debo 11.000,00 €; me deben 0,00 €'));
+const muchas = { deudas: Array.from({ length: 40 }, (_, i) => deuda('debo', `Persona ${i}`, 'Algo', Array.from({ length: 30 }, (_, j) => mov(`2026-01-${String(j % 28 + 1).padStart(2, '0')}`, j ? 'pago' : 'prestamo', 100)))), ajustes: datos.ajustes };
+const versiones = versionesDatos(muchas, '2026-04-01');
+assert.ok(versiones.every(v => v.length <= 9000) || versiones.length === 1);
+assert.ok(versiones[versiones.length - 1].includes('Persona 39'), 'aunque se recorte, salen todas las deudas');
 
 // importes escritos en cada idioma
 assert.deepEqual(['12,5', '1.000', '1.234,56', '1234.56', '650,50 €', 'x'].map(parseNum), [12.5, 1000, 1234.56, 1234.56, 650.5, null]);

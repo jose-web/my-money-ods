@@ -23,6 +23,10 @@ export const numeroEditable = (n: number, ceros = false): string => {
 export const fechaLarga = (iso: string): string =>
   new Date(iso).toLocaleString(t.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+/** «2041-03» → «marzo de 2041» / «March 2041» */
+export const mesAnio = (mes: string): string =>
+  new Date(`${mes}-01T12:00:00Z`).toLocaleDateString(t.locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
 /** 2026-10-09 → 09/10/2026 (igual en los dos idiomas: el inglés es el británico) */
 export function fecha(iso: string): string {
   if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso;

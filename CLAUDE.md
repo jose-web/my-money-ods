@@ -32,6 +32,11 @@ Antes de dar un cambio por bueno: `check`, `test` y `build`. El usuario suele te
 | `src/components/Deudas.tsx` | Un lado (`debo` o `meDeben`): tarjetas de deudas, saldadas aparte y, al abrir una, sus movimientos; modales de deuda y de movimiento |
 | `src/components/AjustesForm.tsx` | Hoja Ajustes (solo el correo de las copias) |
 | `src/components/{Selector,ModalFormulario,ModalCorreo,ElegirDrive,PaginaDrive}.tsx`, `ui.ts` | Del original |
+| `src/lib/estimacion.ts` | Cuándo quedará saldada una deuda (`estimar`), calculado con código |
+| `src/lib/ia.ts` | Prompt API de Chrome (Gemini Nano): estado, sesión, respuesta por trozos; API actual y antigua |
+| `src/lib/contexto.ts` | Los datos en texto para la IA (`textoDatos`, `versionesDatos`) y la frase de la estimación |
+| `src/components/Chat.tsx` | Chat flotante; también `AvisoIA` (estado y descarga del modelo) y `TextoIA` (Markdown mínimo) |
+| `src/components/usarIA.ts` | Estado de la IA compartido (`usarIA`, `activarIA`) |
 | `src/lib/i18n.ts` | Textos en español e inglés (`t`, `setIdioma`, `IDIOMAS`) |
 | `src/lib/registro.ts` | Hojas ↔ datos y cálculos (`cifras`, `pendiente`, `claveDeuda`, `nuevoId`) |
 | `scripts/plantilla.mjs` | Genera `public/plantilla.ods` (no hay LibreOffice de por medio) |
@@ -83,6 +88,23 @@ Antes de dar un cambio por bueno: `check`, `test` y `build`. El usuario suele te
   también acepta «pay…»/«repa…» como pago.
 - Importes (`parseNum`): con punto y coma, el decimal es el último; con uno solo, es decimal salvo que separe miles
   en el idioma actual («1.000» en español, «1,000» en inglés). En los campos se muestran con `numeroEditable`.
+
+- **IA con la Prompt API de Chrome** (lo pidió el usuario, con un ejemplo de `window.ai.languageModel`, que es la API
+  antigua): se usa el global `LanguageModel` (availability → unavailable/downloadable/downloading/available;
+  `initialPrompts` con rol system; `expectedInputs/Outputs` con el idioma, y si falla, sin ellos) y, si no está, la
+  antigua. Trozos del stream: los actuales son solo lo nuevo y los antiguos lo acumulado; `responder` admite los dos.
+  - **Las cuentas no las hace la IA**: `estimar` calcula ritmo (lo devuelto desde el primer pago / meses hasta hoy,
+    mínimo 1), meses que faltan, mes final y la variante +25 %; tope de 1200 meses. La IA recibe el texto con esas cifras
+    y se le pide copiarlas. La estimación se ve siempre, haya IA o no.
+  - Chat: los datos van en el system prompt (`t.ia.sistemaChat`), recortados por caracteres (`versionesDatos`, 9000) y,
+    si el modelo dice que no cabe (`noCabe`), con menos movimientos. Si cambian los datos o el idioma, la siguiente
+    pregunta abre otra sesión con los últimos 8 turnos. «Parar» aborta y deja lo escrito; esa sesión no se reutiliza.
+  - El botón del chat solo sale si la IA está lista o se puede descargar; si no (sin API, o `unavailable`), Ajustes lo
+    explica. La descarga del modelo empieza con un clic (`activarIA`), como exige el navegador.
+  - Probado con un `LanguageModel` simulado en Playwright (descarga con progreso, respuesta por trozos, datos en las
+    instrucciones, idioma, parar, sesión nueva con historial, explicar la estimación). El Chrome 155 de esta máquina trae
+    la API pero en headless dice `unavailable`: **sin probar con Gemini Nano de verdad** (calidad de las respuestas,
+    tamaño real de la ventana).
 
 ## Estado (2026-10-23)
 

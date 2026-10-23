@@ -6,6 +6,13 @@ Web estática (Astro + Preact + Tailwind) para llevar lo que debo y lo que me de
 - **Resumen**: total que debo, total que me deben y el balance; cada deuda pendiente de los dos lados.
 - **Debo / Me deben**: tantas deudas como quieras (el banco por la casa, mi prima por las vacaciones, mi hermana
   por el préstamo del coche…). Cada una con lo que queda, lo devuelto y sus préstamos y pagos; las saldadas van aparte.
+- **Estimación**: en cada deuda, cuándo quedaría saldada al ritmo al que se ha ido pagando (lo devuelto desde el
+  primer pago, repartido entre los meses que han pasado hasta hoy), y cuándo pagando un 25 % más. La calcula la web,
+  no la IA; funciona siempre.
+- **IA del navegador** (Gemini Nano, con la Prompt API de Chrome): un **chat abajo a la derecha** para preguntar por tus
+  datos («¿cuánto debo en total?», «¿cuándo terminaré de pagar al banco?») y un botón **Explicar con IA** en la
+  estimación. Funciona en el propio dispositivo: los datos no salen de él. Solo en Chrome de escritorio reciente con el
+  modelo descargado (la web lo ofrece la primera vez; son varios GB); en el resto de navegadores no aparece.
 - **Ajustes**: idioma y correo para las copias de seguridad.
 - **Idiomas**: español e inglés (en la bienvenida, en el menú «⋯» y en Ajustes). Se guarda en el archivo (fila IDIOMA de
   Ajustes), así sale igual en todos tus dispositivos; sin archivo abierto, el del navegador. El archivo no cambia con el idioma: sus hojas y columnas van siempre en español.

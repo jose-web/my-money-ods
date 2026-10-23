@@ -1,7 +1,9 @@
 // src/components/Resumen.tsx
 // Portada: cuánto debo, cuánto me deben y la diferencia; debajo, cada deuda pendiente de los dos lados.
 import { cifras, round2, type Datos, type Deuda, type Lado } from '../lib/registro.ts';
-import { eur } from '../lib/format.ts';
+import { eur, mesAnio } from '../lib/format.ts';
+import { estimar } from '../lib/estimacion.ts';
+import { hoy } from '../lib/registro.ts';
 import { etiqueta, h2, muted, panel } from './ui.ts';
 import { t } from '../lib/i18n.ts';
 
@@ -45,6 +47,10 @@ export function Resumen({ datos, onIr }: Props) {
                   <span class="col-span-2 h-2 rounded-full bg-field">
                     <span class={`block h-2 rounded-full ${lado === 'debo' ? 'bg-danger/60' : 'bg-ok/60'}`} style={{ width: `${Math.max(0, d.pendiente / max) * 100}%` }} />
                   </span>
+                  {(() => {
+                    const e = estimar(d, hoy());
+                    return e.tipo === 'estimada' && e.meses < 1200 && <span class="col-span-2 text-[11.5px] text-muted">{t.estimacion.corta(mesAnio(e.mes))}</span>;
+                  })()}
                 </button>
               </li>
             ))}

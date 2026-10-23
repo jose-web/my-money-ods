@@ -4,6 +4,8 @@
 import type { ComponentChildren } from 'preact';
 import type { Ajustes } from '../lib/registro.ts';
 import { t } from '../lib/i18n.ts';
+import { AvisoIA } from './Chat.tsx';
+import { usarIA } from './usarIA.ts';
 import { campo, etiqueta, gridForm, h2, input, muted, panel, panelHead, span2, span4 } from './ui.ts';
 
 interface Props {
@@ -14,6 +16,7 @@ interface Props {
 }
 
 export function AjustesForm({ ajustes, onChange, idioma }: Props) {
+  const ia = usarIA();
   return (
     <section class={panel}>
       <div class={panelHead}>
@@ -33,6 +36,11 @@ export function AjustesForm({ ajustes, onChange, idioma }: Props) {
           <input class={input} type="email" value={ajustes.copiaEmail} placeholder={t.ajustes.emailEj} onInput={e => onChange({ ...ajustes, copiaEmail: e.currentTarget.value })} />
           <span class={`${muted} text-xs`}>{t.ajustes.emailNota}</span>
         </label>
+        <div class={`${campo} ${span4}`}>
+          <span class={etiqueta}>{t.ia.ajustes}</span>
+          <p class={`${muted} text-xs`}>{t.ia.ajustesNota}</p>
+          {ia.estado === 'lista' ? <p class="text-[13px] text-ok">{t.ia.lista}</p> : <AvisoIA conFlags />}
+        </div>
         <p class={`${span4} ${muted} text-xs`}>{t.ajustes.ayudaHoja}</p>
       </div>
     </section>

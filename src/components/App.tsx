@@ -13,6 +13,7 @@ import { Resumen } from './Resumen.tsx';
 import { Deudas } from './Deudas.tsx';
 import { AjustesForm } from './AjustesForm.tsx';
 import { ModalCorreo } from './ModalCorreo.tsx';
+import { Chat } from './Chat.tsx';
 import { ahoraLocal, fecha, fechaLarga } from '../lib/format.ts';
 import { IDIOMAS, idioma, setIdioma, t, type Idioma } from '../lib/i18n.ts';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
@@ -616,6 +617,8 @@ export default function App() {
           onCerrar={() => setCopia(null)}
         />
       )}
+
+      <Chat datos={datos} />
 
       {toast && (
         <div class="fixed bottom-5.5 left-1/2 z-60 w-max max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-full bg-primary px-4.5 py-2.75 text-ink shadow-[0_10px_30px_-10px_rgba(0,0,0,.5)] movil:bottom-[calc(80px+env(safe-area-inset-bottom))] movil:rounded-2xl movil:text-center" role="status">{toast}</div>

@@ -3,8 +3,8 @@
 // las vacaciones…) con lo que queda de cada una y, al abrir una, sus préstamos y pagos con lo que quedaba después
 // de cada uno. Todo se edita en modales. Cada deuda es una hoja del archivo (ver src/lib/registro.ts).
 import { useState } from 'preact/hooks';
-import { cifras, claveDeuda, hoy, nuevoId, porFecha, round2, type Deuda, type Lado, type Movimiento, type Tipo } from '../lib/registro.ts';
-import { eur, fecha, mesAnio, numeroEditable, parseNum } from '../lib/format.ts';
+import { cifras, claveDeuda, hoy, mesDe, mesesCon, nuevoId, porFecha, round2, totalesDe, type Deuda, type Lado, type Movimiento, type Tipo } from '../lib/registro.ts';
+import { eur, fecha, mayuscula, mesAnio, numeroEditable, parseNum } from '../lib/format.ts';
 import { estimar } from '../lib/estimacion.ts';
 import { detalleEstimacion, fraseEstimacion, textoDeuda } from '../lib/contexto.ts';
 import { preguntarUnaVez } from '../lib/ia.ts';
@@ -13,7 +13,7 @@ import { TextoIA } from './Chat.tsx';
 import { activarIA, usarIA } from './usarIA.ts';
 import { ModalFormulario } from './ModalFormulario.tsx';
 import { Selector } from './Selector.tsx';
-import { btn, campo, empty, error as errorCls, etiqueta, h2, icon, input, lista, listaFila, muted, panel, panelHead, span2 } from './ui.ts';
+import { btn, campo, empty, error as errorCls, etiqueta, filtro, filtros, h2, icon, input, lista, listaFila, muted, panel, panelHead, span2 } from './ui.ts';
 
 interface Props {
   lado: Lado;
@@ -23,6 +23,9 @@ interface Props {
   /** la deuda abierta (su id) o null para ver la lista; lo lleva App para que el resumen pueda abrir una */
   abierta: string | null;
   onAbrir(id: string | null): void;
+  /** mes con el que se filtra («2026-10»), o vacío para todos; lo lleva App para que valga en todas las pestañas */
+  mes: string;
+  onMes(mes: string): void;
 }
 
 /** Deuda nueva o editada: `id` es el de la que se edita (null si es nueva). */
@@ -64,7 +67,7 @@ function Progreso({ prestado, pagado }: { prestado: number; pagado: number }) {
   );
 }
 
-export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
+export function Deudas({ lado, deudas, onChange, abierta, onAbrir, mes, onMes }: Props) {
   const [deuda, setDeuda] = useState<EdicionDeuda | null>(null);
   const [mov, setMov] = useState<EdicionMov | null>(null);
   const [explicacion, setExplicacion] = useState<Explicacion | null>(null);
@@ -76,6 +79,22 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
   const activas = delLado.filter(({ c }) => c.pendiente !== 0);
   const saldadas = delLado.filter(({ c }) => c.pendiente === 0);
   const actual = delLado.find(({ x }) => x.id === abierta) ?? null;
+  // filtro por mes: los meses salen de las deudas de los dos lados, para que el elegido exista en las dos pestañas
+  const meses = mesesCon(deudas);
+  const enMes = (m: Movimiento) => !mes || mesDe(m.fecha) === mes;
+  const conMes = ({ x }: { x: Deuda }) => !mes || x.movimientos.some(enMes);
+  /** «En octubre de 2026: Me prestaron 100 € · Pagué 50 €», con los movimientos de ese mes */
+  const resumenMes = (movs: Movimiento[]) => {
+    const r = totalesDe(movs.filter(enMes));
+    return `${t.filtros.enMes(mesAnio(mes))} ${l.tipo.prestamo} ${eur(r.prestado)} · ${l.tipo.pago} ${eur(r.pagado)}`;
+  };
+  const filtroMes = meses.length > 0 && (
+    <div class={`${filtros} mb-4`}>
+      <Selector clase={`${filtro} cursor-pointer text-left`} valor={mes} vacio={t.filtros.todos} onChange={onMes}
+        opciones={meses.map(m => ({ valor: m, texto: mayuscula(mesAnio(m)) }))} />
+      {mes && <button class={btn('ghost', 'small')} onClick={() => onMes('')}>{t.filtros.quitar}</button>}
+    </div>
+  );
   const nombres = [...new Set(delLado.map(({ x }) => x.quien).filter(Boolean))];
 
   /** Cambia una deuda (por su id) y deja las demás como están. */
@@ -222,7 +241,7 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
     const filas = porFecha(x.movimientos.map((m, i) => ({ m, i, fecha: m.fecha }))).map(({ m, i }) => {
       acumulado = round2(acumulado + (m.tipo === 'pago' ? -m.importe : m.importe));
       return { m, i, queda: acumulado };
-    }).reverse();
+    }).reverse().filter(({ m }) => enMes(m));
     const p = c.pendiente;
 
     return (
@@ -272,6 +291,9 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
           );
         })()}
 
+        {filtroMes}
+        {mes && <p class="mb-2 text-[13px] text-ink-2">{resumenMes(x.movimientos)}</p>}
+        {mes && filas.length === 0 && <p class={empty}>{t.filtros.sinMovs}</p>}
         <ul class={lista}>
           {filas.map(({ m, i, queda }) => (
             <li key={i} class={listaFila}>
@@ -307,6 +329,8 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
 
   // ------------------------------------------------------------ todas
   const total = round2(activas.reduce((s, { c }) => s + c.pendiente, 0));
+  const activasMes = activas.filter(conMes);
+  const saldadasMes = saldadas.filter(conMes);
 
   return (
     <section class={panel}>
@@ -320,15 +344,20 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
         <button class={btn()} onClick={() => setDeuda({ id: null, quien: '', motivo: '', importe: '', fecha: hoy(), notas: '' })}>{l.nueva}</button>
       </div>
 
-      {activas.length > 0 && (
+      {filtroMes}
+      {mes && delLado.length > 0 && <p class="mb-4 text-[13px] text-ink-2">{resumenMes(delLado.flatMap(({ x }) => x.movimientos))}</p>}
+      {mes && delLado.length > 0 && activasMes.length + saldadasMes.length === 0 && <p class={empty}>{t.filtros.sinDeudas}</p>}
+
+      {activasMes.length > 0 && (
         <div class="grid grid-cols-3 gap-3 tablet:grid-cols-2 movil:grid-cols-1">
-          {activas.map(({ x, c }) => (
+          {activasMes.map(({ x, c }) => (
             <button key={x.id} class={tarjeta} onClick={() => onAbrir(x.id)}>
               <span class="truncate font-semibold">{x.quien || t.deudas.sinNombre}</span>
               <span class="truncate text-xs text-muted">{x.motivo || t.deudas.sinMotivo}</span>
               <span class={`mt-1 text-[24px] leading-tight font-bold tracking-[-.02em] tabular-nums ${c.pendiente > 0 ? color : ''}`}>{eur(c.pendiente)}</span>
               <span class="text-xs text-muted">{t.deudas.devuelto(eur(c.pagado), eur(c.prestado))}</span>
               <Progreso prestado={c.prestado} pagado={c.pagado} />
+              {mes && <span class="mt-1 text-xs text-ink-2">{resumenMes(x.movimientos)}</span>}
               {(() => {
                 const e = estimar(x, hoy());
                 return e.tipo === 'estimada' && e.meses < 1200 && <span class="mt-1 text-xs text-ink-2">{t.estimacion.corta(mesAnio(e.mes))}</span>;
@@ -338,13 +367,13 @@ export function Deudas({ lado, deudas, onChange, abierta, onAbrir }: Props) {
         </div>
       )}
       {delLado.length === 0 && <p class={empty}>{l.vacio}</p>}
-      {delLado.length > 0 && activas.length === 0 && <p class={empty}>{t.deudas.todoSaldado}</p>}
+      {!mes && delLado.length > 0 && activas.length === 0 && <p class={empty}>{t.deudas.todoSaldado}</p>}
 
-      {saldadas.length > 0 && (
+      {saldadasMes.length > 0 && (
         <div class="mt-7">
           <h3 class={`${etiqueta} mb-1.5`}>{t.deudas.saldadas}</h3>
           <ul class={lista}>
-            {saldadas.map(({ x, c }) => (
+            {saldadasMes.map(({ x, c }) => (
               <li key={x.id} class={listaFila}>
                 <div class="min-w-0 flex-1">
                   <p class="truncate font-semibold">{x.quien || t.deudas.sinNombre}{x.motivo && <span class="font-normal text-muted"> · {x.motivo}</span>}</p>

@@ -10,6 +10,7 @@ import {
 import { ElegirDrive } from './ElegirDrive.tsx';
 import { PaginaDrive } from './PaginaDrive.tsx';
 import { Resumen } from './Resumen.tsx';
+import { Estadisticas } from './Estadisticas.tsx';
 import { Deudas } from './Deudas.tsx';
 import { AjustesForm } from './AjustesForm.tsx';
 import { ModalCorreo } from './ModalCorreo.tsx';
@@ -19,17 +20,18 @@ import { IDIOMAS, idioma, setIdioma, t, type Idioma } from '../lib/i18n.ts';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
 
 // 'drive' es la página de Google Drive: se llega desde el menú «⋯», no tiene pestaña
-type Tab = 'resumen' | Lado | 'ajustes' | 'drive';
+type Tab = 'resumen' | 'estadisticas' | Lado | 'ajustes' | 'drive';
 // pestaña e icono (trazo SVG de 24×24, para la barra inferior del móvil); el texto y el corto, en t.tabs
 const TABS: [Exclude<Tab, 'drive'>, string][] = [
-  ['resumen', 'M4 20V11M10 20V5M16 20v-6M21 20H3'],
+  ['resumen', 'M4 10.5 12 4l8 6.5V20H4zM10 20v-5h4v5'],
+  ['estadisticas', 'M4 20V11M10 20V5M16 20v-6M21 20H3'],
   ['debo', 'M12 5v14M6 13l6 6 6-6'],
   ['meDeben', 'M12 19V5M6 11l6-6 6 6'],
   ['ajustes', 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4'],
 ];
 // Pestañas: píldoras en la barra superior; en tablet, en una fila propia; en móvil, barra fija abajo
 const NAV = 'flex gap-0.5 rounded-full bg-ink/8 p-0.75 tablet:order-3 tablet:col-span-full tablet:max-w-full tablet:justify-self-start tablet:overflow-x-auto '
-  + 'movil:fixed movil:inset-x-0 movil:bottom-0 movil:grid movil:max-w-none movil:grid-cols-4 movil:justify-self-stretch movil:gap-0 movil:overflow-visible '
+  + 'movil:fixed movil:inset-x-0 movil:bottom-0 movil:grid movil:max-w-none movil:grid-cols-5 movil:justify-self-stretch movil:gap-0 movil:overflow-visible '
   + 'movil:rounded-none movil:border-t movil:border-ink/8 movil:bg-paper/85 movil:px-1 movil:pt-1.5 movil:pb-[max(6px,env(safe-area-inset-bottom))] '
   + 'movil:shadow-[0_-10px_30px_-18px_rgba(0,0,0,.35)] movil:backdrop-blur-xl movil:backdrop-saturate-150';
 const NAV_TAB = 'cursor-pointer appearance-none rounded-full border-0 px-3.5 py-1.75 text-[13px] font-semibold whitespace-nowrap [-webkit-tap-highlight-color:transparent] '
@@ -81,6 +83,8 @@ export default function App() {
   useEffect(() => setIdioma(idioma), []);
   // la deuda abierta en cada lado (su clave), o null para ver la lista
   const [abierta, setAbierta] = useState<Record<Lado, string | null>>({ debo: null, meDeben: null });
+  // filtro por mes («2026-10»), el mismo en Estadísticas, Debo y Me deben; vacío = todos
+  const [mes, setMes] = useState('');
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -155,6 +159,7 @@ export default function App() {
       setDirty(false);
       setTab('resumen');
       setAbierta({ debo: null, meDeben: null });
+      setMes('');
       setPendiente(null);
       setSinAvisoCopia(false);
       setAuto('');
@@ -503,6 +508,7 @@ export default function App() {
     ] : []],
     ['', [[t.menu.cerrarArchivo, cerrar]]],
   ];
+  const irA = (lado: Lado, id: string | null) => { setAbierta(a => ({ ...a, [lado]: id })); setTab(lado); };
   const diasCopia = datos.ajustes.copia ? diasDesde(datos.ajustes.copia) : null;
   const avisoCopia = !sinAvisoCopia && !sesion.drive && (diasCopia === null || diasCopia >= DIAS_AVISO_COPIA);
   const emailCopia = datos.ajustes.copiaEmail.trim();
@@ -587,10 +593,11 @@ export default function App() {
       )}
 
       <main class="mx-auto max-w-295 px-5 pt-6 pb-20 movil:px-3 movil:pt-3.5 movil:pb-[calc(96px+env(safe-area-inset-bottom))]">
-        {tab === 'resumen' && <Resumen datos={datos} onIr={(lado, clave) => { setAbierta(a => ({ ...a, [lado]: clave })); setTab(lado); }} />}
+        {tab === 'resumen' && <Resumen datos={datos} onIr={irA} />}
+        {tab === 'estadisticas' && <Estadisticas datos={datos} mes={mes} onMes={setMes} onIr={irA} />}
         {(tab === 'debo' || tab === 'meDeben') && (
           <Deudas key={tab} lado={tab} deudas={datos.deudas} onChange={deudas => cambiar(d => ({ ...d, deudas }))}
-            abierta={abierta[tab]} onAbrir={id => setAbierta(a => ({ ...a, [tab]: id }))} />
+            abierta={abierta[tab]} onAbrir={id => setAbierta(a => ({ ...a, [tab]: id }))} mes={mes} onMes={setMes} />
         )}
         {tab === 'ajustes' && <AjustesForm ajustes={datos.ajustes} onChange={ajustes => cambiar(d => ({ ...d, ajustes }))} idioma={selectorIdioma} />}
         {tab === 'drive' && (

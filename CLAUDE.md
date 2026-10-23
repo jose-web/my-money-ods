@@ -29,6 +29,8 @@ Antes de dar un cambio por bueno: `check`, `test` y `build`. El usuario suele te
 |---|---|
 | `src/components/App.tsx` | Estado global, barra, menú «⋯», abrir/guardar, Drive, copias |
 | `src/components/Resumen.tsx` | Portada: debo, me deben, balance y las deudas pendientes de cada lado |
+| `src/components/Estadisticas.tsx` | Gráficos en SVG a mano (anillos, barras por mes, líneas de lo pendiente, progreso por deuda, tabla) y los movimientos del mes elegido |
+| `src/lib/estadisticas.ts` | Cifras de los gráficos: `rangoMeses`, `porMes`, `devuelto` |
 | `src/components/Deudas.tsx` | Un lado (`debo` o `meDeben`): tarjetas de deudas, saldadas aparte y, al abrir una, sus movimientos; modales de deuda y de movimiento |
 | `src/components/AjustesForm.tsx` | Hoja Ajustes (solo el correo de las copias) |
 | `src/components/{Selector,ModalFormulario,ModalCorreo,ElegirDrive,PaginaDrive}.tsx`, `ui.ts` | Del original |
@@ -105,6 +107,19 @@ Antes de dar un cambio por bueno: `check`, `test` y `build`. El usuario suele te
     instrucciones, idioma, parar, sesión nueva con historial, explicar la estimación). El Chrome 155 de esta máquina trae
     la API pero en headless dice `unavailable`: **sin probar con Gemini Nano de verdad** (calidad de las respuestas,
     tamaño real de la ventana).
+
+- **Filtro por mes** (lo pidió el usuario): un solo estado `mes` en App («2026-10» o vacío), compartido por Estadísticas,
+  Debo y Me deben, y que se borra al abrir otro archivo. Las opciones salen de los meses con movimientos de **todas**
+  las deudas (`mesesCon`), para que el mes elegido exista en las dos pestañas. Filtra qué se enseña, nunca las cifras
+  de fondo: el pendiente, el «quedaba» de cada movimiento y la estimación siguen calculándose con todo. La sección
+  «Movimientos de <mes>» (totales por lado y lista; cada fila abre su deuda) estaba en el Resumen y el usuario pidió
+  pasarla a una página **Estadísticas** (pestaña entre Resumen y Debo; en móvil «Gráficas», 5 pestañas abajo).
+- **Gráficos sin librería**: SVG dibujado al ancho real del contenedor (`ResizeObserver`), para que el texto no se
+  deforme. Barras de pagos de cada mes (12 meses seguidos, también los vacíos; pulsar una elige el mes), líneas de lo
+  pendiente al acabar cada mes (24), anillos de lo devuelto, barras de progreso por deuda y una tabla con los datos.
+  Recuadro al pasar el ratón, leyenda y valor final escrito en las líneas. La evolución solo cuenta movimientos con
+  fecha. Colores propios `serie-debo` (#b00020) y `serie-medeben` (#2a9d68): el `ok` de siempre se confundía con el
+  rojo en deuteranopia (ΔE 5,3); con este verde, 13,7 (validador de la skill dataviz).
 
 ## Estado (2026-10-23)
 

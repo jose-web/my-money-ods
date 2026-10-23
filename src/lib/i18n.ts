@@ -16,6 +16,7 @@ const es = {
 
   tabs: {
     resumen: ['Resumen', 'Resumen'],
+    estadisticas: ['Estadísticas', 'Gráficas'],
     debo: ['Debo', 'Debo'],
     meDeben: ['Me deben', 'Me deben'],
     ajustes: ['Ajustes', 'Ajustes'],
@@ -257,6 +258,40 @@ Para recuperarla, descarga el archivo adjunto y ábrelo en la web, en LibreOffic
     ninguna: 'Ninguna todavía.',
   },
 
+  estadisticas: {
+    titulo: 'Estadísticas',
+    sinDatos: 'Todavía no hay movimientos con fecha. Cuando apuntes alguno, aquí verás los gráficos.',
+    devueltoDebo: 'Lo que debo, ya pagado',
+    devueltoMeDeben: 'Lo que me deben, ya recuperado',
+    deTotal: (pagado: string, prestado: string) => `${pagado} de ${prestado}`,
+    nadaPrestado: 'Nada apuntado todavía',
+    actividad: 'Actividad',
+    movimientos: (n: number) => plural(n, 'movimiento', 'movimientos'),
+    enMeses: (deudas: number, meses: number) => `en ${plural(deudas, 'deuda', 'deudas')} y ${plural(meses, 'mes', 'meses')}`,
+    pagos: 'Pagos de cada mes',
+    pagosNota: 'Lo que pagaste y lo que te devolvieron en los últimos meses. Pulsa un mes para ver sus movimientos.',
+    pague: 'Pagué',
+    meDevolvieron: 'Me devolvieron',
+    evolucion: 'Lo pendiente, mes a mes',
+    evolucionNota: 'Lo que debías y lo que te debían al acabar cada mes.',
+    progreso: 'Cuánto llevas de cada deuda',
+    progresoNota: 'La parte oscura es lo devuelto; la clara, lo que queda.',
+    pct: (pct: string) => `${pct} devuelto`,
+    queda: (importe: string) => `queda ${importe}`,
+    verTabla: 'Ver los datos en una tabla',
+    mes: 'Mes',
+  },
+
+  filtros: {
+    todos: 'Todos los meses',
+    mes: 'Mes',
+    enMes: (mes: string) => `En ${mes}:`,
+    sinMovs: 'Ningún movimiento en ese mes.',
+    sinDeudas: 'Ninguna deuda con movimientos en ese mes.',
+    movimientos: (mes: string) => `Movimientos de ${mes}`,
+    quitar: 'Ver todos los meses',
+  },
+
   estimacion: {
     titulo: 'Estimación',
     saldada: 'Saldada.',
@@ -351,6 +386,7 @@ const en: Textos = {
 
   tabs: {
     resumen: ['Summary', 'Summary'],
+    estadisticas: ['Statistics', 'Stats'],
     debo: ['I owe', 'I owe'],
     meDeben: ['Owed to me', 'Owed me'],
     ajustes: ['Settings', 'Settings'],
@@ -590,6 +626,40 @@ To restore it, download the attached file and open it in the web app or LibreOff
     sinHojas: 'There are no sheets in the folder.',
     copiasNota: 'To restore one: “Open here” opens it like any sheet (whatever you save goes to that backup).',
     ninguna: 'None yet.',
+  },
+
+  estadisticas: {
+    titulo: 'Statistics',
+    sinDatos: 'No dated entries yet. Once you add some, the charts will show up here.',
+    devueltoDebo: 'What I owe, already paid',
+    devueltoMeDeben: 'What I’m owed, already recovered',
+    deTotal: (pagado: string, prestado: string) => `${pagado} of ${prestado}`,
+    nadaPrestado: 'Nothing added yet',
+    actividad: 'Activity',
+    movimientos: (n: number) => `${n} ${n === 1 ? 'entry' : 'entries'}`,
+    enMeses: (deudas: number, meses: number) => `in ${deudas} ${deudas === 1 ? 'debt' : 'debts'} and ${meses} ${meses === 1 ? 'month' : 'months'}`,
+    pagos: 'Payments each month',
+    pagosNota: 'What you paid and what you were paid back in recent months. Press a month to see its entries.',
+    pague: 'I paid',
+    meDevolvieron: 'Paid back to me',
+    evolucion: 'Outstanding, month by month',
+    evolucionNota: 'What you owed and what you were owed at the end of each month.',
+    progreso: 'How far along each debt is',
+    progresoNota: 'The dark part is what has been paid; the light part, what is left.',
+    pct: (pct: string) => `${pct} paid`,
+    queda: (importe: string) => `${importe} left`,
+    verTabla: 'See the data as a table',
+    mes: 'Month',
+  },
+
+  filtros: {
+    todos: 'All months',
+    mes: 'Month',
+    enMes: (mes: string) => `In ${mes}:`,
+    sinMovs: 'No entries in that month.',
+    sinDeudas: 'No debts with entries in that month.',
+    movimientos: (mes: string) => `Entries in ${mes}`,
+    quitar: 'Show all months',
   },
 
   estimacion: {

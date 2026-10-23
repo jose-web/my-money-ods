@@ -23,9 +23,23 @@ export const numeroEditable = (n: number, ceros = false): string => {
 export const fechaLarga = (iso: string): string =>
   new Date(iso).toLocaleString(t.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+/** Con la primera letra en mayúscula: «marzo de 2041» → «Marzo de 2041» */
+export const mayuscula = (s: string): string => s.charAt(0).toLocaleUpperCase(t.locale) + s.slice(1);
+
 /** «2041-03» → «marzo de 2041» / «March 2041» */
 export const mesAnio = (mes: string): string =>
   new Date(`${mes}-01T12:00:00Z`).toLocaleDateString(t.locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/** «2041-03» → «mar» / «Mar» (para los ejes de los gráficos) */
+export const mesCorto = (mes: string): string =>
+  new Date(`${mes}-01T12:00:00Z`).toLocaleDateString(t.locale, { month: 'short', timeZone: 'UTC' }).replace('.', '');
+
+/** Importe redondeado y corto, para los ejes: «1,2 mil €» / «€1.2K» */
+export const eurCorto = (n: number): string =>
+  new Intl.NumberFormat(t.locale, { style: 'currency', currency: 'EUR', notation: 'compact', maximumFractionDigits: 1 }).format(n || 0);
+
+/** 0.456 → «46 %» / «46%» */
+export const porcentaje = (n: number): string => new Intl.NumberFormat(t.locale, { style: 'percent', maximumFractionDigits: 0 }).format(n || 0);
 
 /** 2026-10-09 → 09/10/2026 (igual en los dos idiomas: el inglés es el británico) */
 export function fecha(iso: string): string {

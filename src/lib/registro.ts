@@ -318,6 +318,19 @@ export function cifras(x: Deuda): { prestado: number; pagado: number; pendiente:
 /** QUIÉN y MOTIVO sin mayúsculas ni tildes: dos deudas del mismo lado no pueden coincidir (se confundirían). */
 export const claveDeuda = (quien: string, motivo: string): string => `${norm(quien)}\u0000${norm(motivo)}`;
 
+/** «2026-10» de una fecha; vacío si no la tiene. */
+export const mesDe = (iso: string): string => (/^\d{4}-\d{2}/.test(iso) ? iso.slice(0, 7) : '');
+
+/** Los meses con algún movimiento, del más reciente al más antiguo. */
+export const mesesCon = (deudas: Deuda[]): string[] =>
+  [...new Set(deudas.flatMap(x => x.movimientos.map(m => mesDe(m.fecha))).filter(Boolean))].sort().reverse();
+
+/** Lo prestado y lo pagado de unos movimientos (p. ej. los de un mes). */
+export const totalesDe = (movs: Movimiento[]): { prestado: number; pagado: number } => ({
+  prestado: suma(movs.filter(m => m.tipo === 'prestamo')),
+  pagado: suma(movs.filter(m => m.tipo === 'pago')),
+});
+
 /** Ordena por fecha (las que no tienen, al final) sin desordenar las del mismo día. */
 export const porFecha = <T extends { fecha: string }>(xs: T[]): T[] =>
   xs.map((x, i) => ({ x, i })).sort((a, b) => (a.x.fecha || '9999').localeCompare(b.x.fecha || '9999') || a.i - b.i).map(({ x }) => x);

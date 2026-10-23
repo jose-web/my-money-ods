@@ -19,6 +19,10 @@
   --color-ok: #1e6b3a;
   --color-ok-soft: #dcf2e3;
   --color-danger-soft: #fbe3e7;
+  /* series de los gráficos (debo / me deben): rojo y un verde más claro que `ok`, para que se distingan también
+     con daltonismo (comprobado: ΔE 13,7 en deuteranopia) */
+  --color-serie-debo: #b00020;
+  --color-serie-medeben: #2a9d68;
 }
 
 /* Puntos de corte: `tablet:` hasta 900 px y `movil:` hasta 600 px. En este orden, para que `movil:` gane. */

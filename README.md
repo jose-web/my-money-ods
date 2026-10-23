@@ -6,6 +6,12 @@ Web estática (Astro + Preact + Tailwind) para llevar lo que debo y lo que me de
 - **Resumen**: total que debo, total que me deben y el balance; cada deuda pendiente de los dos lados.
 - **Debo / Me deben**: tantas deudas como quieras (el banco por la casa, mi prima por las vacaciones, mi hermana
   por el préstamo del coche…). Cada una con lo que queda, lo devuelto y sus préstamos y pagos; las saldadas van aparte.
+- **Estadísticas**: cuánto llevas devuelto de cada lado (anillos), los pagos de cada mes (barras, últimos 12 meses),
+  cómo ha cambiado lo pendiente (líneas, últimos 24), cuánto llevas de cada deuda y los mismos datos en una tabla.
+  Al pasar por un mes se ven sus cifras; al pulsar una barra se elige ese mes.
+- **Filtro por mes** (en Estadísticas, Debo y Me deben; el mes elegido vale en las tres): en Estadísticas, los
+  movimientos de ese mes de todas las deudas con sus totales; en cada lado, solo las deudas con movimientos ese mes y lo prestado y
+  pagado en él; dentro de una deuda, solo sus movimientos de ese mes (lo pendiente sigue contando todo).
 - **Estimación**: en cada deuda, cuándo quedaría saldada al ritmo al que se ha ido pagando (lo devuelto desde el
   primer pago, repartido entre los meses que han pasado hasta hoy), y cuándo pagando un 25 % más. La calcula la web,
   no la IA; funciona siempre.

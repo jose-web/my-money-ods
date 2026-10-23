@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import JSZip from 'jszip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 Object.assign(globalThis, { DOMParser, XMLSerializer });
-const { abrir, guardar, cifras, nuevoId, pendiente } = await import('../src/lib/registro.ts');
+const { abrir, guardar, cifras, nuevoId, pendiente, mesesCon, totalesDe, mesDe } = await import('../src/lib/registro.ts');
 const { OdsDocument } = await import('../src/lib/ods.ts');
 const i18n = await import('../src/lib/i18n.ts');
 const { setIdioma } = i18n;
 const { parseNum, numeroEditable } = await import('../src/lib/format.ts');
 const { estimar, sumarMeses } = await import('../src/lib/estimacion.ts');
 const { textoDatos, versionesDatos, fraseEstimacion } = await import('../src/lib/contexto.ts');
+const { rangoMeses, porMes, devuelto } = await import('../src/lib/estadisticas.ts');
 import type { Deuda, Lado, Movimiento } from '../src/lib/registro.ts';
 // el test va en español (en Node el idioma del sistema podría ser otro)
 setIdioma('es');
@@ -144,6 +145,25 @@ const muchas = { deudas: Array.from({ length: 40 }, (_, i) => deuda('debo', `Per
 const versiones = versionesDatos(muchas, '2026-04-01');
 assert.ok(versiones.every(v => v.length <= 9000) || versiones.length === 1);
 assert.ok(versiones[versiones.length - 1].includes('Persona 39'), 'aunque se recorte, salen todas las deudas');
+
+// filtro por mes: meses con movimientos (de más reciente a más antiguo) y lo de cada uno
+assert.equal(mesDe('2026-10-23'), '2026-10');
+assert.equal(mesDe(''), '');
+assert.deepEqual(mesesCon(again.datos.deudas), ['2026-10', '2026-09', '2026-08', '2026-06', '2026-05', '2026-03', '2026-02', '2026-01']);
+assert.deepEqual(totalesDe(again.datos.deudas[0].movimientos.filter(m => mesDe(m.fecha) === '2026-02')), { prestado: 0, pagado: 650.5 });
+
+// estadísticas: meses seguidos (también los vacíos), lo de cada mes y lo pendiente al acabarlo
+const est = [hipoteca, deuda('meDeben', 'Ana', 'Viaje', [mov('2026-02-10', 'prestamo', 300), mov('2026-04-05', 'pago', 100), mov('', 'pago', 50)])];
+assert.deepEqual(rangoMeses(est, '2026-05'), ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']);
+assert.deepEqual(rangoMeses(est, '2026-05', 2), ['2026-04', '2026-05']);
+assert.deepEqual(rangoMeses([], '2026-05'), []);
+const pm = porMes(est, rangoMeses(est, '2026-05'));
+assert.deepEqual(pm.map(m => m.debo.pagado), [0, 500, 500, 0, 0]);
+assert.deepEqual(pm.map(m => m.pendiente.debo), [12000, 11500, 11000, 11000, 11000]);
+assert.deepEqual(pm.map(m => m.pendiente.meDeben), [0, 300, 300, 200, 200], 'el pago sin fecha no cuenta en la evolución');
+assert.deepEqual(devuelto(est, 'debo'), { prestado: 12000, pagado: 1000, parte: 1000 / 12000 });
+assert.equal(devuelto(est, 'meDeben').pagado, 150);
+assert.equal(devuelto([], 'debo').parte, 0);
 
 // importes escritos en cada idioma
 assert.deepEqual(['12,5', '1.000', '1.234,56', '1234.56', '650,50 €', 'x'].map(parseNum), [12.5, 1000, 1234.56, 1234.56, 650.5, null]);

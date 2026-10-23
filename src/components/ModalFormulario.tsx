@@ -4,6 +4,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { btn } from './ui.ts';
+import { t } from '../lib/i18n.ts';
 
 interface Props {
   titulo: string;
@@ -16,7 +17,7 @@ interface Props {
   children: ComponentChildren;
 }
 
-export function ModalFormulario({ titulo, valido = true, aceptar = 'Aceptar', onAceptar, onCancelar, children }: Props) {
+export function ModalFormulario({ titulo, valido = true, aceptar = t.comun.aceptar, onAceptar, onCancelar, children }: Props) {
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => { form.current?.querySelector<HTMLElement>('input:not([type=checkbox]), select')?.focus(); }, []);
 
@@ -29,7 +30,7 @@ export function ModalFormulario({ titulo, valido = true, aceptar = 'Aceptar', on
         <div class="flex items-center justify-between gap-3 bg-primary py-2.5 pr-3.5 pl-5 text-ink movil:px-3 movil:pt-[calc(10px+env(safe-area-inset-top))]">
           <span class="min-w-0 truncate font-bold">{titulo}</span>
           <div class="flex gap-2">
-            <button type="button" class={btn('bar')} onClick={onCancelar}>Cancelar</button>
+            <button type="button" class={btn('bar')} onClick={onCancelar}>{t.comun.cancelar}</button>
             <button type="submit" class={btn('white')} disabled={!valido}>{aceptar}</button>
           </div>
         </div>

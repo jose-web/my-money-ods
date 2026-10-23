@@ -13,17 +13,18 @@ import { Resumen } from './Resumen.tsx';
 import { Deudas } from './Deudas.tsx';
 import { AjustesForm } from './AjustesForm.tsx';
 import { ModalCorreo } from './ModalCorreo.tsx';
-import { ahoraLocal, fecha } from '../lib/format.ts';
+import { ahoraLocal, fecha, fechaLarga } from '../lib/format.ts';
+import { IDIOMAS, idioma, setIdioma, t, type Idioma } from '../lib/i18n.ts';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
 
 // 'drive' es la página de Google Drive: se llega desde el menú «⋯», no tiene pestaña
 type Tab = 'resumen' | Lado | 'ajustes' | 'drive';
-// pestaña, texto, texto corto e icono (trazo SVG de 24×24); los dos últimos son para la barra inferior del móvil
-const TABS: [Tab, string, string, string][] = [
-  ['resumen', 'Resumen', 'Resumen', 'M4 20V11M10 20V5M16 20v-6M21 20H3'],
-  ['debo', 'Debo', 'Debo', 'M12 5v14M6 13l6 6 6-6'],
-  ['meDeben', 'Me deben', 'Me deben', 'M12 19V5M6 11l6-6 6 6'],
-  ['ajustes', 'Ajustes', 'Ajustes', 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4'],
+// pestaña e icono (trazo SVG de 24×24, para la barra inferior del móvil); el texto y el corto, en t.tabs
+const TABS: [Exclude<Tab, 'drive'>, string][] = [
+  ['resumen', 'M4 20V11M10 20V5M16 20v-6M21 20H3'],
+  ['debo', 'M12 5v14M6 13l6 6 6-6'],
+  ['meDeben', 'M12 19V5M6 11l6-6 6 6'],
+  ['ajustes', 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4'],
 ];
 // Pestañas: píldoras en la barra superior; en tablet, en una fila propia; en móvil, barra fija abajo
 const NAV = 'flex gap-0.5 rounded-full bg-ink/8 p-0.75 tablet:order-3 tablet:col-span-full tablet:max-w-full tablet:justify-self-start tablet:overflow-x-auto '
@@ -63,13 +64,20 @@ interface Sesion {
 type Abierto = Archivo & { drive?: DriveArchivo | null };
 
 const nombreCopia = (nombre: string, cuando: string): string => `${nombre.replace(/\.ods$/i, '')} (copia ${cuando.slice(0, 10)}).ods`;
-const fechaDrive = (iso: string): string =>
-  new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export default function App() {
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [datos, setDatos] = useState<Datos | null>(null);
   const [tab, setTab] = useState<Tab>('resumen');
+  // al cambiarlo se vuelve a pintar todo (los componentes leen `t`, que ya es el del idioma nuevo)
+  const [lengua, setLengua] = useState<Idioma>(idioma);
+  /** Con un archivo abierto, el idioma también se apunta en su hoja Ajustes (y se guarda con lo demás). */
+  function cambiarIdioma(i: Idioma) {
+    setIdioma(i);
+    setLengua(i);
+    if (datos && datos.ajustes.idioma !== i) cambiar(d => ({ ...d, ajustes: { ...d.ajustes, idioma: i } }));
+  }
+  useEffect(() => setIdioma(idioma), []);
   // la deuda abierta en cada lado (su clave), o null para ver la lista
   const [abierta, setAbierta] = useState<Record<Lado, string | null>>({ debo: null, meDeben: null });
   const [dirty, setDirty] = useState(false);
@@ -103,8 +111,8 @@ export default function App() {
 
   useEffect(() => {
     if (!sesion?.drive || !dirty || auto === 'parado' || auto === 'guardando') return;
-    const t = window.setTimeout(() => guardarEnDrive(false), auto === 'error' ? PAUSA_REINTENTO : PAUSA_AUTOGUARDADO);
-    return () => clearTimeout(t);
+    const espera = window.setTimeout(() => guardarEnDrive(false), auto === 'error' ? PAUSA_REINTENTO : PAUSA_AUTOGUARDADO);
+    return () => clearTimeout(espera);
   }, [datos, dirty, sesion?.drive?.id, auto]);
 
   useEffect(() => {
@@ -118,7 +126,7 @@ export default function App() {
         await retomar(r, false);
       } else if (r?.bytes) {
         await cargar({ nombre: r.nombre, bytes: r.bytes, handle: null }, false);
-        avisar(`Recuperada la copia de ${r.nombre} del ${new Date(r.fecha).toLocaleDateString('es-ES')}`);
+        avisar(t.app.recuperada(r.nombre, new Date(r.fecha).toLocaleDateString(t.locale)));
       }
     })().finally(() => setInicio(false));
   }, []);
@@ -131,13 +139,18 @@ export default function App() {
 
   async function cargar(a: Abierto | null, recordarlo = true, preguntar = true) {
     if (!a) return;
-    if (preguntar && dirty && !confirm('Hay cambios sin guardar. ¿Abrir otro archivo igualmente?')) return;
+    if (preguntar && dirty && !confirm(t.app.cambiosAbrir)) return;
     setBusy(true);
     setError('');
     try {
       const { registro, datos } = await abrir(a.bytes);
       setSesion({ registro, nombre: a.nombre, handle: a.handle, drive: a.drive ?? null });
       setDatos(datos);
+      // el idioma del archivo manda sobre el del navegador
+      if (datos.ajustes.idioma === 'es' || datos.ajustes.idioma === 'en') {
+        setIdioma(datos.ajustes.idioma);
+        setLengua(datos.ajustes.idioma);
+      }
       setDirty(false);
       setTab('resumen');
       setAbierta({ debo: null, meDeben: null });
@@ -168,10 +181,10 @@ export default function App() {
           // se borró (o está en la papelera): no tiene sentido seguir ofreciéndolo
           setPendiente(null);
           olvidar();
-          setError(`${r.nombre} ya no está en Google Drive (se ha borrado o está en la papelera). Ábrelo desde «Abrir desde Google Drive» o crea uno nuevo.`);
+          setError(t.app.yaNoEstaDrive(r.nombre));
         } else {
           setPendiente(r);
-          if (pedir) setError(`No se pudo abrir ${r.nombre} de Google Drive: ${(e as Error).message}`);
+          if (pedir) setError(t.app.noAbrirDrive(r.nombre, (e as Error).message));
         }
       } finally {
         setBusy(false);
@@ -183,16 +196,16 @@ export default function App() {
       const a = await reabrir(r.handle, pedir);
       if (a) return await cargar(a);
       setPendiente(r);
-      if (pedir) setError(`Sin permiso para leer ${r.nombre}.`);
+      if (pedir) setError(t.app.sinPermiso(r.nombre));
     } catch {
       setPendiente(null);
       olvidar();
-      setError(`No se pudo reabrir ${r.nombre}: puede que se haya movido o borrado.`);
+      setError(t.app.noReabrir(r.nombre));
     }
   }
 
   function cerrar() {
-    if (dirty && !confirm('Hay cambios sin guardar. ¿Cerrar el archivo igualmente?')) return;
+    if (dirty && !confirm(t.app.cambiosCerrar)) return;
     olvidar();
     setSesion(null);
     setDatos(null);
@@ -203,7 +216,7 @@ export default function App() {
   async function plantilla() {
     const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     const r = await fetch(`${base}plantilla.ods`);
-    await cargar({ nombre: 'mi dinero.ods', bytes: await r.arrayBuffer(), handle: null });
+    await cargar({ nombre: t.app.archivoVacio, bytes: await r.arrayBuffer(), handle: null });
   }
 
   function cambiar(fn: (d: Datos) => Datos) {
@@ -219,21 +232,21 @@ export default function App() {
       const bytes = await guardar(sesion.registro, datos);
       if (!copia && sesion.handle) {
         await escribir(sesion.handle, bytes);
-        avisar(`Guardado en ${sesion.nombre}`);
+        avisar(t.app.guardadoEn(sesion.nombre));
       } else if (!copia && puedeGuardarEncima()) {
         const handle = await guardarComo(sesion.nombre, bytes);
         if (!handle) return;
         setSesion({ ...sesion, handle, nombre: handle.name });
         recordar({ nombre: handle.name, handle, bytes: null });
-        avisar(`Guardado en ${handle.name}`);
+        avisar(t.app.guardadoEn(handle.name));
       } else {
         descargar(sesion.nombre, bytes);
         if (!copia) recordar({ nombre: sesion.nombre, handle: null, bytes: bytes.slice().buffer });
-        avisar('Descargado. Sustituye tu archivo por este.');
+        avisar(t.app.descargado);
       }
       if (!copia) setDirty(false);
     } catch (e) {
-      setError(`No se pudo guardar: ${(e as Error).message}`);
+      setError(t.app.noGuardar((e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -251,7 +264,7 @@ export default function App() {
     const acceso = manual || conectadoDrive() ? accesoDrive() : null;
     if (!acceso) {
       setAuto('parado');
-      setError('La sesión de Google ha caducado y los cambios no se guardan solos: pulsa «Guardar» para volver a entrar.');
+      setError(t.app.sesionCaducada);
       return;
     }
     const f = s.drive;
@@ -262,10 +275,10 @@ export default function App() {
       await acceso;
       const ahora = await datosDrive(f.id);
       if (ahora.modificado !== f.modificado) {
-        const aviso = `${f.nombre} ha cambiado en Google Drive desde que lo abriste (el ${fechaDrive(ahora.modificado)}), quizá desde otro dispositivo o en Hojas de cálculo.`;
-        if (!manual || !confirm(`${aviso} Si guardas, esos cambios se perderán. ¿Guardar igualmente?`)) {
+        const aviso = t.app.cambiadoDrive(f.nombre, fechaLarga(ahora.modificado));
+        if (!manual || !confirm(t.app.pisar(aviso))) {
           setAuto('parado');
-          setError(`${aviso} Para no pisarlo, los cambios ya no se guardan solos: pulsa «Guardar» para guardar los tuyos encima, o ábrelo de nuevo para ver los otros.`);
+          setError(t.app.pausado(aviso));
           return;
         }
       }
@@ -275,7 +288,7 @@ export default function App() {
       if (ultimo.current.datos === d) setDirty(false);
       setAuto('');
       setError('');
-      if (manual) avisar(`Guardado en Google Drive (${nuevo.nombre})`);
+      if (manual) avisar(t.app.guardadoEnDrive(nuevo.nombre));
       if (d.ajustes.copia.slice(0, 10) !== ahoraLocal().slice(0, 10)) await copiaDiaria(s, d);
     } catch (e) {
       if (e instanceof NoEstaEnDrive) {
@@ -283,11 +296,10 @@ export default function App() {
         setSesion(x => (x?.drive?.id === f.id ? { ...x, drive: null } : x));
         recordar({ nombre: s.nombre, handle: null, bytes: (await guardar(s.registro, d)).slice().buffer, drive: null });
         setAuto('');
-        setError(`«${f.nombre}» ya no está en Google Drive (se ha borrado o está en la papelera), así que no se ha guardado. `
-          + 'Tus datos siguen aquí: súbelo otra vez con «⋯ › Subir este archivo a Drive» o descarga una copia.');
+        setError(t.app.borradoDeDrive(f.nombre));
       } else {
         setAuto(manual ? '' : 'error');
-        setError(`No se pudo guardar en Google Drive: ${(e as Error).message}${manual ? '' : ' Se volverá a intentar solo.'}`);
+        setError(t.app.noGuardarDrive((e as Error).message, !manual));
       }
     } finally {
       guardando.current = false;
@@ -301,9 +313,9 @@ export default function App() {
       const cuando = ahoraLocal();
       await subirCopia(nombreCopia(s.nombre, cuando), await guardar(s.registro, { ...d, ajustes: { ...d.ajustes, copia: cuando } }));
       // la fecha cambia los datos: el guardado automático la guarda enseguida
-      copiaHecha(cuando, `Copia de seguridad del día guardada en Google Drive, en ${DONDE_COPIAS}.`);
+      copiaHecha(cuando, t.app.copiaDia(DONDE_COPIAS));
     } catch (e) {
-      setError(`No se pudo hacer la copia de seguridad del día en Google Drive: ${(e as Error).message}`);
+      setError(t.app.noCopiaDia((e as Error).message));
     }
   }
 
@@ -319,9 +331,9 @@ export default function App() {
       setDirty(false);
       recordar({ nombre: f.nombre, handle: null, bytes: null, drive: f.id });
       setAuto('');
-      avisar(`Subido a Google Drive como Hoja de cálculo «${f.nombre}», en la carpeta «${CARPETA_APP}»: desde ahora los cambios se guardan solos allí.`);
+      avisar(t.app.subido(f.nombre, CARPETA_APP));
     } catch (e) {
-      setError(`No se pudo subir a Google Drive: ${(e as Error).message}`);
+      setError(t.app.noSubir((e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -339,7 +351,7 @@ export default function App() {
       if (!lista.carpeta) await carpetaApp();
       setEnDrive(lista);
     } catch (e) {
-      setError(`No se pudo entrar en Google Drive: ${(e as Error).message}`);
+      setError(t.app.noEntrarDrive((e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -347,7 +359,7 @@ export default function App() {
 
   /** Archivo nuevo y vacío (la plantilla) en la carpeta de Drive, convertido en Hoja de Google, y lo abre. */
   async function crearEnDrive() {
-    if (dirty && !confirm('Hay cambios sin guardar. ¿Crear y abrir uno nuevo igualmente?')) return;
+    if (dirty && !confirm(t.app.cambiosCrear)) return;
     const acceso = accesoDrive();
     setEnDrive(null);
     setBusy(true);
@@ -355,12 +367,12 @@ export default function App() {
       await acceso;
       const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       const bytes = await (await fetch(`${base}plantilla.ods`)).arrayBuffer();
-      const f = await subirRegistro('Mi dinero', new Uint8Array(bytes));
+      const f = await subirRegistro(t.app.hojaNueva, new Uint8Array(bytes));
       setBusy(false);
       await cargar({ nombre: f.nombre, bytes, handle: null, drive: f }, true, false);
-      avisar(`Creado «${f.nombre}» en la carpeta «${CARPETA_APP}» de Google Drive. Los cambios se guardan solos.`);
+      avisar(t.app.creado(f.nombre, CARPETA_APP));
     } catch (e) {
-      setError(`No se pudo crear la hoja en Google Drive: ${(e as Error).message}`);
+      setError(t.app.noCrear((e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -374,7 +386,7 @@ export default function App() {
       setBusy(false);
       await cargar({ nombre: archivo.nombre, bytes, handle: null, drive: archivo });
     } catch (e) {
-      setError(`No se pudo abrir ${f.nombre}: ${(e as Error).message}`);
+      setError(t.app.noAbrir(f.nombre, (e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -390,9 +402,9 @@ export default function App() {
       const cuando = ahoraLocal();
       const bytes = await guardar(sesion.registro, { ...datos, ajustes: { ...datos.ajustes, copia: cuando } });
       await subirCopia(nombreCopia(sesion.nombre, cuando), bytes);
-      copiaHecha(cuando, `Copia guardada en Google Drive, en ${DONDE_COPIAS}.${sesion.drive ? '' : ' Guarda el archivo para que recuerde la fecha.'}`);
+      copiaHecha(cuando, t.app.copiaEnDrive(DONDE_COPIAS, !sesion.drive));
     } catch (e) {
-      setError(`No se pudo hacer la copia en Google Drive: ${(e as Error).message}`);
+      setError(t.app.noCopiaDrive((e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -408,14 +420,25 @@ export default function App() {
       const bytes = await guardar(sesion.registro, { ...datos, ajustes: { ...datos.ajustes, copia: cuando } });
       setCopia({ cuando, archivo: new File([bytes as Uint8Array<ArrayBuffer>], nombreCopia(sesion.nombre, cuando), { type: ODS_MIME }), fallo: '' });
     } catch (e) {
-      setCopia({ cuando, archivo: null, fallo: `No se pudo preparar la copia: ${(e as Error).message}` });
+      setCopia({ cuando, archivo: null, fallo: t.app.noPrepararCopia((e as Error).message) });
     }
   }
 
-  function copiaHecha(cuando: string, aviso = 'Copia de seguridad enviada. Guarda el archivo para que recuerde la fecha.') {
+  function copiaHecha(cuando: string, aviso = t.app.copiaEnviada) {
     cambiar(d => ({ ...d, ajustes: { ...d.ajustes, copia: cuando } }));
     avisar(aviso);
   }
+
+  const selectorIdioma = (
+    <div class="flex gap-1 rounded-full bg-field p-0.75" role="group" aria-label={t.comun.idioma}>
+      {IDIOMAS.map(([id, nombre]) => (
+        <button key={id} lang={id} aria-pressed={lengua === id} onClick={() => cambiarIdioma(id)}
+          class={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold ${lengua === id ? 'bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,.15)]' : 'text-muted hover:text-ink'}`}>
+          {nombre}
+        </button>
+      ))}
+    </div>
+  );
 
   // ------------------------------------------------------------ sin archivo
   if (inicio && !sesion) return <main class="min-h-screen" />;
@@ -433,25 +456,25 @@ export default function App() {
         }}
       >
         <div class="w-[min(560px,100%)] rounded-[18px] bg-paper px-10 py-11 shadow-[0_1px_0_var(--color-line),0_30px_60px_-30px_rgba(0,0,0,.25)] movil:px-5.5 movil:py-7.5">
-          <p class="grid size-14 place-items-center rounded-2xl bg-primary text-[30px] font-bold">€</p>
-          <h1 class="mt-4 mb-3 text-[34px] leading-[1.1] font-bold tracking-[-.02em]">Mi dinero</h1>
-          <p class="mb-6.5 text-[15px] text-ink-2">
-            Lo que debes y lo que te deben (al banco por la casa, a tu prima por las vacaciones…), sobre tu hoja de cálculo. Los datos se leen y se guardan en ese mismo
-            archivo, en tu dispositivo{hayDrive ? ' o como Hoja de cálculo en tu Google Drive' : ''}: no pasan por ningún servidor nuestro.
-          </p>
+          <div class="flex items-start justify-between gap-3">
+            <p class="grid size-14 place-items-center rounded-2xl bg-primary text-[30px] font-bold">€</p>
+            {selectorIdioma}
+          </div>
+          <h1 class="mt-4 mb-3 text-[34px] leading-[1.1] font-bold tracking-[-.02em]">{t.nombre}</h1>
+          <p class="mb-6.5 text-[15px] text-ink-2">{t.bienvenida.texto(hayDrive)}</p>
           <div class="mb-3 flex flex-wrap gap-2.5">
             {pendiente && (
               <button class={`${btn('primary', 'big')} movil:w-full`} disabled={busy} onClick={() => retomar(pendiente, true)}>
-                Continuar con {pendiente.nombre}{pendiente.drive ? ' (Google Drive)' : ''}
+                {t.bienvenida.continuar(pendiente.nombre, !!pendiente.drive)}
               </button>
             )}
-            {hayDrive && <button class={`${btn(pendiente ? 'ghost' : 'primary', 'big')} movil:w-full`} disabled={busy} onClick={abrirDeDrive}>Abrir desde Google Drive</button>}
+            {hayDrive && <button class={`${btn(pendiente ? 'ghost' : 'primary', 'big')} movil:w-full`} disabled={busy} onClick={abrirDeDrive}>{t.bienvenida.abrirDrive}</button>}
             <button class={`${btn(pendiente || hayDrive ? 'ghost' : 'primary', 'big')} movil:w-full`} disabled={busy} onClick={async () => cargar(await elegirArchivo())}>
-              Abrir un .ods
+              {t.bienvenida.abrirOds}
             </button>
-            <button class={`${btn('ghost', 'big')} movil:w-full`} disabled={busy} onClick={plantilla}>Empezar con uno vacío</button>
+            <button class={`${btn('ghost', 'big')} movil:w-full`} disabled={busy} onClick={plantilla}>{t.bienvenida.vacio}</button>
           </div>
-          <p class={`${muted} text-xs`}>o arrastra el archivo aquí</p>
+          <p class={`${muted} text-xs`}>{t.bienvenida.arrastra}</p>
           {error && <p class={`${errorCls} mt-2.5`} role="alert">{error}</p>}
         </div>
         {enDrive && <ElegirDrive archivos={enDrive} onElegir={elegirDeDrive} onCrear={crearEnDrive} onCerrar={() => setEnDrive(null)} />}
@@ -465,19 +488,19 @@ export default function App() {
   type Accion = [string, () => unknown];
   const si = (cond: unknown, a: Accion): Accion[] => (cond ? [a] : []);
   const bloques: [string, Accion[]][] = [
-    ['Archivo', [
-      ['Abrir otro archivo', async () => cargar(await elegirArchivo())],
-      ['Descargar una copia (.ods)', () => guardarArchivo(true)],
-      ['Copia de seguridad por correo', copiaSeguridad],
+    [t.menu.archivo, [
+      [t.menu.abrirOtro, async () => cargar(await elegirArchivo())],
+      [t.menu.descargar, () => guardarArchivo(true)],
+      [t.menu.copiaCorreo, copiaSeguridad],
     ]],
-    ['Google Drive', hayDrive ? [
-      ['Abrir una hoja de Drive', abrirDeDrive],
-      ...si(!sesion.drive, ['Subir este archivo a Drive', subirADrive]),
-      ...si(sesion.drive, ['Ver en Hojas de cálculo', () => window.open(sesion.drive!.enlace, '_blank', 'noopener')]),
-      ['Copia de seguridad en Drive', copiaEnDrive],
-      ['Carpeta y copias de Drive', () => setTab('drive')],
+    [t.menu.drive, hayDrive ? [
+      [t.menu.abrirDrive, abrirDeDrive],
+      ...si(!sesion.drive, [t.menu.subirDrive, subirADrive]),
+      ...si(sesion.drive, [t.menu.verHojas, () => window.open(sesion.drive!.enlace, '_blank', 'noopener')]),
+      [t.menu.copiaDrive, copiaEnDrive],
+      [t.menu.carpetaDrive, () => setTab('drive')],
     ] : []],
-    ['', [['Cerrar el archivo', cerrar]]],
+    ['', [[t.menu.cerrarArchivo, cerrar]]],
   ];
   const diasCopia = datos.ajustes.copia ? diasDesde(datos.ajustes.copia) : null;
   const avisoCopia = !sinAvisoCopia && !sesion.drive && (diasCopia === null || diasCopia >= DIAS_AVISO_COPIA);
@@ -487,13 +510,14 @@ export default function App() {
       <header class="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-primary px-5 pt-[calc(10px+env(safe-area-inset-top))] pb-2.5 text-ink tablet:grid-cols-[1fr_auto] movil:gap-2 movil:px-3">
         <span class="flex min-w-0 items-center gap-2 text-lg font-bold tracking-[-.01em]">
           <span class="grid size-8 shrink-0 place-items-center rounded-[10px] bg-ink text-base text-primary">€</span>
-          <span class="truncate">Mi dinero</span>
+          <span class="truncate">{t.nombre}</span>
         </span>
         {/* tablet: fila propia bajo la barra; móvil: barra fija abajo, translúcida como las de iOS, con la
             pestaña activa en una pastilla y por encima de la barrita de inicio del iPhone (zona segura) */}
         <nav class={NAV} role="tablist">
-          {TABS.map(([id, label, corto, icono]) => {
+          {TABS.map(([id, icono]) => {
             const activa = tab === id;
+            const [label, corto] = t.tabs[id];
             return (
               <button key={id} role="tab" aria-selected={activa} onClick={() => { if (activa && (id === 'debo' || id === 'meDeben')) setAbierta(a => ({ ...a, [id]: null })); setTab(id); }}
                 class={`${NAV_TAB} ${activa ? 'bg-white text-ink movil:font-semibold' : 'bg-transparent text-ink-2 hover:text-ink movil:text-muted'}`}>
@@ -507,11 +531,11 @@ export default function App() {
         </nav>
         <div class="flex justify-end gap-2">
           <button class={btn('white')} disabled={busy || !dirty || auto === 'guardando'} onClick={() => guardarArchivo(false)}>
-            {busy || auto === 'guardando' ? 'Guardando…' : dirty ? 'Guardar' : sesion.drive ? 'Guardado en Drive' : 'Guardado'}
+            {busy || auto === 'guardando' ? t.barra.guardando : dirty ? t.barra.guardar : sesion.drive ? t.barra.guardadoDrive : t.barra.guardado}
           </button>
           {/* las acciones de archivo van en un menú, que también dice qué archivo está abierto */}
           <div class="relative">
-            <button class={`${btn('bar')} px-3`} aria-label="Más acciones" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(m => !m)}>⋯</button>
+            <button class={`${btn('bar')} px-3`} aria-label={t.barra.masAcciones} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(m => !m)}>⋯</button>
             {menu && (
               <>
                 <div class="fixed inset-0" onClick={() => setMenu(false)} />
@@ -519,8 +543,8 @@ export default function App() {
                   {/* qué archivo está abierto y dónde */}
                   <div class="px-3 pt-1.5 pb-2.5 text-xs text-muted">
                     <p class="truncate text-[13px] font-semibold text-ink" title={sesion.nombre}>{sesion.nombre}</p>
-                    <p>{sesion.drive ? `${sesion.drive.hoja ? 'Hoja de Google' : 'En Google Drive'} · se guarda sola` : 'En este dispositivo'}</p>
-                    <p>{datos.ajustes.copia ? `Última copia de seguridad: ${fecha(datos.ajustes.copia.slice(0, 10))}` : 'Sin copias de seguridad'}</p>
+                    <p>{sesion.drive ? (sesion.drive.hoja ? t.menu.hojaGoogle : t.menu.enDrive) : t.menu.enDispositivo}</p>
+                    <p>{datos.ajustes.copia ? t.menu.ultimaCopia(fecha(datos.ajustes.copia.slice(0, 10))) : t.menu.sinCopias}</p>
                   </div>
                   {bloques.filter(([, acciones]) => acciones.length).map(([titulo, acciones]) => (
                     <div key={titulo || 'fin'} class="border-t border-line pt-1 pb-0.5" role="group" aria-label={titulo || undefined}>
@@ -531,6 +555,10 @@ export default function App() {
                       ))}
                     </div>
                   ))}
+                  <div class="flex items-center justify-between gap-2 border-t border-line px-3 pt-2.5 pb-1.5">
+                    <span class="text-[11px] font-bold tracking-[.08em] text-muted uppercase">{t.comun.idioma}</span>
+                    {selectorIdioma}
+                  </div>
                 </div>
               </>
             )}
@@ -548,12 +576,12 @@ export default function App() {
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-primary/45 px-5 py-2.5 text-ink movil:px-3" role="alert">
           <span class="mr-auto text-sm">
             {diasCopia === null
-              ? 'Todavía no has hecho ninguna copia de seguridad de este archivo.'
-              : `Hace ${diasCopia} días de tu última copia de seguridad (${fecha(datos.ajustes.copia.slice(0, 10))}).`}
+              ? t.aviso.nuncaCopia
+              : t.aviso.haceDias(diasCopia, fecha(datos.ajustes.copia.slice(0, 10)))}
           </span>
-          <button class={btn('ghost', 'small')} onClick={copiaSeguridad}>Hacer copia por correo</button>
-          {hayDrive && <button class={btn('ghost', 'small')} disabled={busy} onClick={copiaEnDrive}>Copia en Drive</button>}
-          <button class={iconBase} title="Ocultar el aviso" onClick={() => setSinAvisoCopia(true)}>×</button>
+          <button class={btn('ghost', 'small')} onClick={copiaSeguridad}>{t.aviso.copiaCorreo}</button>
+          {hayDrive && <button class={btn('ghost', 'small')} disabled={busy} onClick={copiaEnDrive}>{t.aviso.copiaDrive}</button>}
+          <button class={iconBase} title={t.aviso.ocultar} onClick={() => setSinAvisoCopia(true)}>×</button>
         </div>
       )}
 
@@ -563,7 +591,7 @@ export default function App() {
           <Deudas key={tab} lado={tab} movimientos={datos[tab]} onChange={movs => cambiar(d => ({ ...d, [tab]: movs }))}
             abierta={abierta[tab]} onAbrir={clave => setAbierta(a => ({ ...a, [tab]: clave }))} />
         )}
-        {tab === 'ajustes' && <AjustesForm ajustes={datos.ajustes} onChange={ajustes => cambiar(d => ({ ...d, ajustes }))} />}
+        {tab === 'ajustes' && <AjustesForm ajustes={datos.ajustes} onChange={ajustes => cambiar(d => ({ ...d, ajustes }))} idioma={selectorIdioma} />}
         {tab === 'drive' && (
           <PaginaDrive actual={sesion.drive} ultimaCopia={datos.ajustes.copia} pausado={auto === 'parado'} onAbrir={elegirDeDrive}
             onCrear={crearEnDrive} onSubir={sesion.drive ? undefined : subirADrive}
@@ -578,14 +606,12 @@ export default function App() {
 
       {copia && (
         <ModalCorreo
-          titulo="Copia de seguridad por correo"
-          archivos={copia.archivo ? [copia.archivo] : []} total={1} adjuntos="el archivo" fallo={copia.fallo}
+          titulo={t.correoCopia.titulo}
+          archivos={copia.archivo ? [copia.archivo] : []} total={1} adjuntos={t.correoCopia.adjuntos} fallo={copia.fallo}
           para={emailCopia}
-          notaPara={emailCopia ? 'El de las copias de seguridad, en Ajustes.' : 'Pon tu email (o guárdalo en Ajustes para la próxima vez).'}
-          asunto={`Copia de seguridad · ${sesion.nombre} · ${fecha(copia.cuando.slice(0, 10))}`}
-          mensaje={`Copia de seguridad de mis cuentas (${sesion.nombre}) del ${fecha(copia.cuando.slice(0, 10))} a las ${copia.cuando.slice(11)}.
-
-Para recuperarla, descarga el archivo adjunto y ábrelo en la web, en LibreOffice o súbelo a Google Drive.`}
+          notaPara={emailCopia ? t.correoCopia.paraAjustes : t.correoCopia.paraVacio}
+          asunto={t.correoCopia.asunto(sesion.nombre, fecha(copia.cuando.slice(0, 10)))}
+          mensaje={t.correoCopia.mensaje(sesion.nombre, fecha(copia.cuando.slice(0, 10)), copia.cuando.slice(11))}
           onEnviado={() => copiaHecha(copia.cuando)}
           onCerrar={() => setCopia(null)}
         />

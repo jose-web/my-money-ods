@@ -1,6 +1,7 @@
 // src/lib/ods.ts
 // Lectura/escritura mínima de hojas .ods conservando estilos, fórmulas, macros y botones:
 // solo se toca content.xml, celda a celda.
+import { t } from './i18n.ts';
 import JSZip from 'jszip';
 
 const NS = {
@@ -188,7 +189,7 @@ export class OdsSheet {
       const n = repeat(c, 'number-columns-repeated');
       if (col < idx + n) {
         const cell = isolate(c, idx, col, 'number-columns-repeated');
-        if (cell.localName === 'covered-table-cell') throw new Error(`${this.name}: la celda ${col} está combinada`);
+        if (cell.localName === 'covered-table-cell') throw new Error(t.errores.celdaCombinada(this.name, col));
         return cell;
       }
       idx += n;
@@ -327,10 +328,10 @@ export class OdsDocument {
   static async open(data: ArrayBuffer | Uint8Array): Promise<OdsDocument> {
     const zip = await JSZip.loadAsync(data);
     const mime = await zip.file('mimetype')?.async('string');
-    if (mime?.trim() !== MIME) throw new Error('El archivo no es una hoja de cálculo .ods');
+    if (mime?.trim() !== MIME) throw new Error(t.errores.noEsOds);
     const xml = await zip.file('content.xml')!.async('string');
     const dom = new DOMParser().parseFromString(xml, 'application/xml');
-    if (dom.getElementsByTagName('parsererror').length) throw new Error('content.xml dañado');
+    if (dom.getElementsByTagName('parsererror').length) throw new Error(t.errores.xmlDanado);
     return new OdsDocument(zip, dom);
   }
 
@@ -339,9 +340,9 @@ export class OdsDocument {
   }
 
   sheet(name: string): OdsSheet {
-    const t = Array.from(this.dom.getElementsByTagNameNS(NS.table, 'table')).find(x => x.getAttributeNS(NS.table, 'name') === name);
-    if (!t) throw new Error(`Falta la hoja «${name}»`);
-    return new OdsSheet(this.dom, t);
+    const tabla = Array.from(this.dom.getElementsByTagNameNS(NS.table, 'table')).find(x => x.getAttributeNS(NS.table, 'name') === name);
+    if (!tabla) throw new Error(t.errores.faltaHoja(name));
+    return new OdsSheet(this.dom, tabla);
   }
 
   /** Añade una hoja vacía y sin estilos al final del libro, con `nCols` columnas de ancho normal. */

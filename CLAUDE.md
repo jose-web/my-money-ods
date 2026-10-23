@@ -32,6 +32,7 @@ Antes de dar un cambio por bueno: `check`, `test` y `build`. El usuario suele te
 | `src/components/Deudas.tsx` | Un lado (`debo` o `meDeben`): tarjetas de deudas, saldadas aparte y, al abrir una, sus movimientos; modales de deuda y de movimiento |
 | `src/components/AjustesForm.tsx` | Hoja Ajustes (solo el correo de las copias) |
 | `src/components/{Selector,ModalFormulario,ModalCorreo,ElegirDrive,PaginaDrive}.tsx`, `ui.ts` | Del original |
+| `src/lib/i18n.ts` | Textos en español e inglés (`t`, `setIdioma`, `IDIOMAS`) |
 | `src/lib/registro.ts` | Hojas ↔ datos y cálculos (`deudas`, `pendiente`, `ordenar`, `claveDeuda`) |
 | `scripts/plantilla.mjs` | Genera `public/plantilla.ods` (no hay LibreOffice de por medio) |
 | `tests/registro.test.ts` | Ida y vuelta, borrado, hojas que faltan y datos escritos a mano |
@@ -58,12 +59,28 @@ Antes de dar un cambio por bueno: `check`, `test` y `build`. El usuario suele te
   `mi-dinero-ods-*`, token `mi-dinero-ods-drive-token`, carpeta de Drive «Mi dinero».
 - Color `primary` = `rgb(196 230 208)` (verde); texto encima en `ink`. Icono «€» (PNG generados con System.Drawing).
 - Sin impresión ni fuente caligráfica (eran de las facturas).
+- **Idiomas español e inglés** (lo pidió el usuario), sin librerías: `src/lib/i18n.ts`. **Ningún texto visible va
+  escrito en un componente ni en `src/lib`**: todo sale de `t` (también errores de Drive y del .ods). El inglés tiene el
+  tipo del español (TypeScript avisa si falta una clave); los textos con datos son funciones. `t` es un `export let`:
+  con import estático se ve el idioma actual (enlace vivo); desestructurado de un `import()` no (ver el test).
+  Al cambiarlo, `App` cambia su estado `lengua` y se vuelve a pintar todo. **Se guarda también en el archivo** (lo pidió el
+  usuario): fila IDIOMA de Ajustes (`es`/`en`; a mano vale «Español», «English», «Inglés»). Al abrir un archivo con
+  idioma, manda sobre el del navegador; cambiarlo con un archivo abierto lo apunta ahí (deja cambios: en Drive se
+  guarda solo). Además se recuerda en localStorage (`mi-dinero-ods-idioma`), para la bienvenida; si no hay nada, el
+  del navegador (no «es…» → inglés). Inglés británico (`en-GB`: fechas dd/mm/aaaa).
+  Selector en la bienvenida, en el menú «⋯» y en Ajustes.
+- **No se traduce lo que es formato de datos**: hojas, columnas, PRÉSTAMO/PAGO, filas de Ajustes, carpetas de Drive
+  («Mi dinero», «Copias de seguridad») y el «(copia AAAA-MM-DD)» de las copias (lo reconoce `drive.ts`). Al leer, TIPO
+  también acepta «pay…»/«repa…» como pago.
+- Importes (`parseNum`): con punto y coma, el decimal es el último; con uno solo, es decimal salvo que separe miles
+  en el idioma actual («1.000» en español, «1,000» en inglés). En los campos se muestran con `numeroEditable`.
 
 ## Estado (2026-10-23)
 
 Funciona: `check`, `test` y `build` pasan. Recorrido en Chrome headless (Playwright) a 1280 y 390 px: dos deudas
 en Debo con pagos, deuda repetida rechazada, una saldada y otra pendiente en Me deben, resumen (y abrir una deuda
-desde él) y descarga del `.ods`; sin errores de consola ni scroll horizontal.
+desde él) y descarga del `.ods`; sin errores de consola ni scroll horizontal. Idiomas: cambio en la bienvenida y en el
+menú sin perder datos, importes en inglés («120,000», «650.50»), recordado al recargar, navegador en inglés → inglés.
 **Sin probar con Google de verdad** (como en el original) ni en un teléfono real. No hay commit todavía.
 
 ## Pendiente / ideas

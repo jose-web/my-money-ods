@@ -5,6 +5,7 @@
 // vacaciones…), así que las filas de una misma deuda se reconocen por esas dos columnas y no hace falta otra hoja.
 // Las hojas se buscan por nombre sin mirar mayúsculas ni tildes; si falta alguna, se crea al guardar.
 // La columna I de cada hoja es para el resumen con fórmula de la plantilla: la web solo actualiza su resultado.
+import { t } from './i18n.ts';
 import { OdsDate, OdsDocument, type CellValue, type OdsSheet } from './ods.ts';
 import { norm, parseNum } from './format.ts';
 
@@ -28,6 +29,8 @@ export interface Ajustes {
   copiaEmail: string;
   /** cuándo se hizo la última copia de seguridad (ISO, hora local); vacío = nunca */
   copia: string;
+  /** idioma de la interfaz guardado en el archivo («es», «en»); vacío = el del navegador */
+  idioma: string;
 }
 
 export interface Datos {
@@ -58,6 +61,7 @@ const CABECERA = ['QUIÉN', 'MOTIVO', 'FECHA', 'CONCEPTO', 'TIPO', 'IMPORTE', 'N
 // en la hoja el tipo va en texto; los mismos que busca la fórmula de la plantilla (SUMIF … "PRÉSTAMO")
 const TIPO_HOJA: Record<Tipo, string> = { prestamo: 'PRÉSTAMO', pago: 'PAGO' };
 const AJUSTES_LABELS: [keyof Ajustes, string][] = [
+  ['idioma', 'IDIOMA'],
   ['copiaEmail', 'EMAIL PARA COPIAS DE SEGURIDAD'],
   ['copia', 'ÚLTIMA COPIA DE SEGURIDAD'],
 ];
@@ -84,8 +88,14 @@ function fechaDe(v: CellValue): string {
   return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 }
 
-// lo que no empiece por «pag» (pago, pagado, pagué) es un préstamo
-const tipoDe = (v: CellValue): Tipo => (norm(str(v)).startsWith('pag') ? 'pago' : 'prestamo');
+// lo que no empiece por «pag» (pago, pagado, pagué) o «pay»/«repa» (en inglés) es un préstamo
+const tipoDe = (v: CellValue): Tipo => (/^(pag|pay|repa)/.test(norm(str(v))) ? 'pago' : 'prestamo');
+
+// el idioma se escribe con su código; a mano también vale el nombre («Español», «English», «Inglés»)
+function idiomaDe(s: string): string {
+  const n = norm(s);
+  return /^(en|ing)/.test(n) ? 'en' : /^es/.test(n) ? 'es' : '';
+}
 
 const filled = (r: CellValue[]): boolean => r.some(v => str(v) !== '');
 
@@ -105,7 +115,7 @@ function rowsOf(sh: OdsSheet | null): { rows: CellValue[][]; span: number } {
 
 /** Escribe `rows` desde la fila 2 y vacía las sobrantes hasta `clearUntil` filas. */
 function writeTable(sh: OdsSheet, rows: CellValue[][], clearUntil: number): void {
-  if (rows.length > CAP) throw new Error(`La hoja «${sh.name}» admite ${CAP} filas como máximo`);
+  if (rows.length > CAP) throw new Error(t.errores.maxFilas(sh.name, CAP));
   const out = rows.slice();
   const empty: CellValue[] = Array(COLS).fill(null);
   while (out.length < clearUntil) out.push(empty);
@@ -126,10 +136,11 @@ export async function abrir(bytes: ArrayBuffer | Uint8Array): Promise<{ registro
     quien: str(r[0]), motivo: str(r[1]), fecha: fechaDe(r[2]), concepto: str(r[3]), tipo: tipoDe(r[4]), importe: num(r[5]), notas: str(r[6]),
   }));
 
-  const ajustes: Ajustes = { copiaEmail: '', copia: '' };
+  const ajustes: Ajustes = { copiaEmail: '', copia: '', idioma: '' };
   for (const [label, valor] of buscarHoja(ods, HOJAS.ajustes)?.readRows(1, 1, 2, 60) ?? []) {
     const key = AJUSTES_LABELS.find(([, l]) => norm(l) === norm(str(label)))?.[0];
-    if (key) ajustes[key] = str(valor);
+    if (key === 'idioma') ajustes.idioma = idiomaDe(str(valor));
+    else if (key) ajustes[key] = str(valor);
   }
 
   return {

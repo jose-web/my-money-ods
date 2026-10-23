@@ -6,6 +6,11 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 Object.assign(globalThis, { DOMParser, XMLSerializer });
 const { abrir, guardar, pendiente, deudas, ordenar, claveDeuda, esDe } = await import('../src/lib/registro.ts');
 const { OdsDocument } = await import('../src/lib/ods.ts');
+const i18n = await import('../src/lib/i18n.ts');
+const { setIdioma } = i18n;
+const { parseNum, numeroEditable } = await import('../src/lib/format.ts');
+// el test va en español (en Node el idioma del sistema podría ser otro)
+setIdioma('es');
 import type { Movimiento } from '../src/lib/registro.ts';
 
 const out = process.argv[2] ?? 'tests/salida.ods';
@@ -21,6 +26,8 @@ assert.equal(datos.ajustes.copiaEmail, '');
 
 // varias deudas en cada lado; los movimientos se apuntan desordenados
 datos.ajustes.copiaEmail = 'yo@correo.es';
+assert.equal(datos.ajustes.idioma, '');
+datos.ajustes.idioma = 'en';
 datos.debo = ordenar([
   mov('Banco', 'Hipoteca de la casa', '2026-01-01', 'prestamo', 120000),
   mov('Hermana', 'Préstamo del coche', '2026-05-10', 'prestamo', 3000),
@@ -52,6 +59,7 @@ const dMe = deudas(again.datos.meDeben);
 assert.deepEqual(dMe.map(d => [d.motivo, d.pendiente]), [['Vacaciones en Lisboa', 0], ['Cena', 35.5]]);
 assert.equal(pendiente(again.datos.meDeben), 35.5);
 assert.equal(again.datos.ajustes.copiaEmail, 'yo@correo.es');
+assert.equal(again.datos.ajustes.idioma, 'en');
 // la deuda se reconoce sin mirar mayúsculas ni tildes
 assert.equal(claveDeuda('mi PRIMA', 'vacaciones en lisboa'), dMe[0].clave);
 
@@ -94,5 +102,19 @@ const releido = await abrir(await creado.toBytes());
 assert.deepEqual(releido.datos.debo[1], { ...mov('banco', 'casa', '2026-10-07', 'pago', 12.5, 'A mano') });
 assert.deepEqual(deudas(releido.datos.debo).map(d => d.pendiente), [987.5]);
 assert.equal(releido.datos.ajustes.copiaEmail, 'otro@correo.es');
+// el idioma escrito a mano en la hoja, por su nombre
+const conIdioma = await OdsDocument.open(await creado.toBytes());
+conIdioma.sheet('Ajustes').writeRows(5, 1, [['Idioma', 'Inglés']]);
+assert.equal((await abrir(await conIdioma.toBytes())).datos.ajustes.idioma, 'en');
+
+// importes escritos en cada idioma
+assert.deepEqual(['12,5', '1.000', '1.234,56', '1234.56', '650,50 €', 'x'].map(parseNum), [12.5, 1000, 1234.56, 1234.56, 650.5, null]);
+assert.equal(numeroEditable(650.5), '650,5');
+setIdioma('en');
+assert.equal(i18n.t.tabs.debo[0], 'I owe'); // `i18n.t`: desestructurado no vería el cambio
+assert.deepEqual(['12.5', '1,000', '1,234.56', '1.234,56', '12,5'].map(parseNum), [12.5, 1000, 1234.56, 1234.56, 12.5]);
+assert.equal(numeroEditable(650.5), '650.5');
+assert.equal(numeroEditable(0, true), '0.00');
+setIdioma('es');
 
 console.log(`ok · ${Math.round(performance.now() - t0)} ms · ${out}`);

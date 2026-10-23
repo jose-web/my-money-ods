@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { norm } from '../lib/format.ts';
 import { input } from './ui.ts';
+import { t } from '../lib/i18n.ts';
 
 type Opcion = { valor: string; texto: string };
 
@@ -132,7 +133,7 @@ export function Selector({ valor, opciones, vacio, onChange, clase = input }: Pr
           class="fixed z-70 flex flex-col rounded-xl border border-line bg-paper p-1.5 text-sm font-normal tracking-normal text-ink normal-case shadow-[0_10px_30px_-10px_rgba(0,0,0,.5)] movil:text-base">
           {conBuscador && (
             <input ref={buscador} class="mb-1.5 w-full rounded-lg border border-transparent bg-field px-2.75 py-2 outline-none focus:border-ink focus:bg-white"
-              placeholder="Buscar…" aria-label="Buscar" value={q} onInput={e => { setQ(e.currentTarget.value); setActiva(0); }} />
+              placeholder={t.comun.buscar} aria-label={t.comun.buscarEtiqueta} value={q} onInput={e => { setQ(e.currentTarget.value); setActiva(0); }} />
           )}
           <div role="listbox" class="overflow-y-auto">
             {visibles.map((o, n) => (
@@ -143,7 +144,7 @@ export function Selector({ valor, opciones, vacio, onChange, clase = input }: Pr
                 {o.valor === valor && <span aria-hidden="true">✓</span>}
               </button>
             ))}
-            {visibles.length === 0 && <p class="px-3 py-2 text-muted">Sin resultados</p>}
+            {visibles.length === 0 && <p class="px-3 py-2 text-muted">{t.comun.sinResultados}</p>}
           </div>
         </div>
       )}

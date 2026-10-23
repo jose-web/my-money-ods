@@ -15,6 +15,8 @@
 //
 // El identificador de cliente de Google llega al compilar (PUBLIC_GOOGLE_CLIENT_ID); sin él no hay Drive.
 
+import { t } from './i18n.ts';
+
 const CLIENT_ID: string = import.meta.env.PUBLIC_GOOGLE_CLIENT_ID ?? '';
 export const hayDrive = CLIENT_ID !== '';
 
@@ -78,8 +80,8 @@ export function prepararDrive(): Promise<void> {
         callback: () => {},
         error_callback: e => {
           pendiente?.mal(new Error(e.type === 'popup_failed_to_open'
-            ? 'El navegador ha bloqueado la ventana de Google. Vuelve a pulsar el botón.'
-            : 'No se ha podido entrar en Google.'));
+            ? t.errores.popup
+            : t.errores.noEntrar));
           pendiente = null;
         },
       });
@@ -89,13 +91,13 @@ export function prepararDrive(): Promise<void> {
           try { sessionStorage.setItem(CLAVE_TOKEN, JSON.stringify(token)); } catch { /* sin almacenamiento */ }
           pendiente?.ok(token.valor);
         } else {
-          pendiente?.mal(new Error('Google no ha dado permiso para usar Drive.'));
+          pendiente?.mal(new Error(t.errores.sinPermisoDrive));
         }
         pendiente = null;
       };
       ok();
     };
-    s.onerror = () => { carga = null; mal(new Error('No se ha podido cargar Google (¿sin conexión?).')); };
+    s.onerror = () => { carga = null; mal(new Error(t.errores.noCargarGoogle)); };
     document.head.appendChild(s);
   });
   return carga;
@@ -125,15 +127,15 @@ export function desconectarDrive(): void {
 
 /** El archivo ya no está en Drive: se borró del todo o está en la papelera (donde Drive aún dejaría guardar). */
 export class NoEstaEnDrive extends Error {
-  constructor() { super('Ya no está en Google Drive: se ha borrado o está en la papelera.'); }
+  constructor() { super(t.errores.noEstaEnDrive); }
 }
 
 async function pedir(url: string, init: RequestInit = {}): Promise<Response> {
-  if (!conectadoDrive()) throw new Error('La sesión de Google ha caducado: vuelve a pulsar el botón.');
+  if (!conectadoDrive()) throw new Error(t.errores.caducada);
   const r = await fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token!.valor}` } });
   if (r.status === 401) {
     token = null;
-    throw new Error('La sesión de Google ha caducado: vuelve a pulsar el botón.');
+    throw new Error(t.errores.caducada);
   }
   if (!r.ok) {
     const detalle = await r.json().then(j => j?.error?.message, () => '');

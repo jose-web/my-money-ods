@@ -2,6 +2,8 @@
 // Abrir/guardar en disco. En Chrome/Edge se usa File System Access y se guarda encima del mismo archivo;
 // en el resto, se descarga una copia.
 
+import { t } from './i18n.ts';
+
 interface FileHandle {
   name: string;
   getFile(): Promise<File>;
@@ -21,7 +23,7 @@ export interface Archivo {
 }
 
 const MIME = 'application/vnd.oasis.opendocument.spreadsheet';
-const TIPOS = [{ description: 'Hoja de cálculo ODS', accept: { [MIME]: ['.ods'] } }];
+const tipos = () => [{ description: t.errores.tipoOds, accept: { [MIME]: ['.ods'] } }];
 
 export const puedeGuardarEncima = (): boolean => typeof (window as PickerWindow).showOpenFilePicker === 'function';
 
@@ -29,7 +31,7 @@ export async function elegirArchivo(): Promise<Archivo | null> {
   const w = window as PickerWindow;
   if (w.showOpenFilePicker) {
     try {
-      const [handle] = await w.showOpenFilePicker({ types: TIPOS, multiple: false });
+      const [handle] = await w.showOpenFilePicker({ types: tipos(), multiple: false });
       const file = await handle.getFile();
       return { nombre: file.name, bytes: await file.arrayBuffer(), handle };
     } catch (e) {
@@ -88,7 +90,7 @@ export async function guardarComo(nombre: string, bytes: Uint8Array): Promise<Fi
   const w = window as PickerWindow;
   if (!w.showSaveFilePicker) return null;
   try {
-    const handle = await w.showSaveFilePicker({ suggestedName: nombre, types: TIPOS });
+    const handle = await w.showSaveFilePicker({ suggestedName: nombre, types: tipos() });
     await escribir(handle, bytes);
     return handle;
   } catch (e) {

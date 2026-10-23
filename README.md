@@ -6,7 +6,9 @@ Web estática (Astro + Preact + Tailwind) para llevar lo que debo y lo que me de
 - **Resumen**: total que debo, total que me deben y el balance; cada deuda pendiente de los dos lados.
 - **Debo / Me deben**: tantas deudas como quieras (el banco por la casa, mi prima por las vacaciones, mi hermana
   por el préstamo del coche…). Cada una con lo que queda, lo devuelto y sus préstamos y pagos; las saldadas van aparte.
-- **Ajustes**: correo para las copias de seguridad.
+- **Ajustes**: idioma y correo para las copias de seguridad.
+- **Idiomas**: español e inglés (en la bienvenida, en el menú «⋯» y en Ajustes). Se guarda en el archivo (fila IDIOMA de
+  Ajustes), así sale igual en todos tus dispositivos; sin archivo abierto, el del navegador. El archivo no cambia con el idioma: sus hojas y columnas van siempre en español.
 - **Guardar**: en Chrome/Edge sobrescribe el mismo archivo; en otros navegadores descarga el `.ods` actualizado.
   Con el archivo en Google Drive, los cambios se guardan solos y se hace una copia de seguridad al día.
 

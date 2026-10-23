@@ -27,6 +27,7 @@ ${cols.map(([c, e]) => `<table:table-column table:style-name="${c}" table:defaul
 const rango = c => `[.${c}2:.${c}${FILAS + 2}]`;
 const pendiente = `of:=SUMIF(${rango('E')};"PRÉSTAMO";${rango('F')})-SUMIF(${rango('E')};"PAGO";${rango('F')})`;
 const AJUSTES = [
+  ['IDIOMA', ''],
   ['EMAIL PARA COPIAS DE SEGURIDAD', ''],
   ['ÚLTIMA COPIA DE SEGURIDAD', ''],
 ];
